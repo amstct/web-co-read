@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>XQcoread 设置</title>
+    <link rel="stylesheet" href="ui.css" />
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <header class="top">
+        <div class="brand">
+          <img src="../icons/icon48.png" alt="" width="40" height="40" />
+          <div>
+            <p class="kicker">Settings console</p>
+            <h1>XQcoread 设置</h1>
+          </div>
+        </div>
+        <p class="lede">把网页划线和页面摘要，增量写入同一份飞书文档。先完成飞书应用与模型配置，即可开始共读捕获。</p>
+      </header>
+
+      <nav class="toc" aria-label="设置分区">
+        <a href="#feishu">飞书文档</a>
+        <a href="#llm">总结模型</a>
+        <a href="#prompt">提示词</a>
+        <a href="#shortcuts">快捷键</a>
+        <a href="#guide">接入说明</a>
+        <a href="#debug">调试日志</a>
+      </nav>
+
+      <form id="settings-form" class="layout">
+        <section class="card panel" id="feishu">
+          <div class="panel-head">
+            <div>
+              <p class="kicker">01 / Lark Docs</p>
+              <h2>飞书文档</h2>
+            </div>
+            <div class="secret-row">
+              <button class="btn btn-secondary" type="button" id="test-feishu">测试连接</button>
+              <button class="btn btn-secondary" type="button" id="probe-feishu">试写一条</button>
+            </div>
+          </div>
+          <div class="grid">
+            <label class="field">
+              <span>开放平台</span>
+              <select class="select" name="feishuApiBase">
+                <option value="https://open.feishu.cn">飞书（open.feishu.cn）</option>
+                <option value="https://open.larkoffice.com">Lark（open.larkoffice.com）</option>
+              </select>
+            </label>
+            <label class="field field-span">
+              <span>飞书文档链接</span>
+              <input class="input" name="feishuDocUrl" placeholder="https://xxx.feishu.cn/docx/ 或 /wiki/" />
+              <span class="hint">内容会追加到该文档末尾，不会覆盖已有内容。</span>
+            </label>
+            <label class="field">
+              <span>App ID</span>
+              <input class="input" name="feishuAppId" autocomplete="off" placeholder="cli_xxx" />
+            </label>
+            <label class="field">
+              <span>App Secret</span>
+              <div class="secret-row">
+                <input class="input" name="feishuAppSecret" type="password" autocomplete="off" />
+                <button class="icon-btn toggle-secret" type="button" aria-label="显示或隐藏 App Secret">
+                  <svg class="icon" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                </button>
+              </div>
+            </label>
+          </div>
+          <p class="status" id="feishu-status" role="status" aria-live="polite"></p>
+        </section>
+
+        <section class="card panel" id="llm">
+          <div class="panel-head">
+            <div>
+              <p class="kicker">02 / Model</p>
+              <h2>总结模型</h2>
+            </div>
+            <button class="btn btn-secondary" type="button" id="test-llm">测试模型</button>
+          </div>
+          <div class="grid">
+            <label class="field field-span">
+              <span>接口类型</span>
+              <div class="secret-row">
+                <select class="select" id="llm-provider">
+                  <option value="openai">OpenAI 兼容（云端）</option>
+                  <option value="ollama">Ollama 本地</option>
+                </select>
+                <button class="btn btn-secondary" type="button" id="list-ollama-models" hidden>拉取本地模型</button>
+              </div>
+            </label>
+            <label class="field">
+              <span>API Base URL</span>
+              <input class="input" name="llmBaseUrl" placeholder="https://api.openai.com/v1" />
+              <span class="hint">云端填厂商 Base。Ollama 填 http://127.0.0.1:11434/v1</span>
+            </label>
+            <label class="field">
+              <span>模型名</span>
+              <input class="input" name="llmModel" list="ollama-model-list" placeholder="gpt-4o-mini 或 qwen2.5" />
+              <datalist id="ollama-model-list"></datalist>
+            </label>
+            <label class="field">
+              <span>上下文长度（tokens）</span>
+              <input class="input" name="llmContextTokens" type="number" min="2048" step="1024" placeholder="131072" />
+              <span class="hint">发给 Ollama 的 num_ctx。128K 填 131072。改完后建议执行 ollama stop 模型名，再总结一次。</span>
+            </label>
+            <label class="field field-span">
+              <span>API Key</span>
+              <div class="secret-row">
+                <input class="input" name="llmApiKey" type="password" autocomplete="off" />
+                <button class="icon-btn toggle-secret" type="button" aria-label="显示或隐藏 API Key">
+                  <svg class="icon" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7 10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                </button>
+              </div>
+              <span class="hint">本地 Ollama 可留空或填 ollama。</span>
+            </label>
+          </div>
+          <div class="callout" id="ollama-help" hidden>
+            <p><strong>Ollama 被 Chrome 插件访问时必须放开来源，否则会 403。</strong></p>
+            <p>1. 终端执行：<code>launchctl setenv OLLAMA_ORIGINS "chrome-extension://*"</code></p>
+            <p>2. 菜单栏 Ollama → Quit Ollama，再重新打开。</p>
+            <p>3. 模型名必须和 <code>ollama list</code> 完全一致。</p>
+            <p>4. 上下文长度要和 Ollama 一致（128K = 131072）。改大后执行 <code>ollama stop 模型名</code>，让模型按新窗口重新加载。</p>
+          </div>
+          <p class="status" id="llm-status" role="status" aria-live="polite"></p>
+        </section>
+
+        <section class="card panel" id="prompt">
+          <div class="panel-head">
+            <div>
+              <p class="kicker">03 / Prompt</p>
+              <h2>总结提示词</h2>
+            </div>
+            <button class="btn btn-ghost" type="button" id="reset-prompt">恢复默认</button>
+          </div>
+          <label class="field">
+            <span>系统提示词</span>
+            <textarea class="textarea" name="summaryPrompt" spellcheck="false"></textarea>
+            <span class="hint">会作为 system prompt 发送给模型。页面标题、URL 和正文由插件自动附上。</span>
+          </label>
+        </section>
+
+        <section class="card panel" id="shortcuts">
+          <div class="panel-head">
+            <div>
+              <p class="kicker">04 / Shortcuts</p>
+              <h2>快捷键</h2>
+            </div>
+            <div class="secret-row">
+              <button class="btn btn-ghost" type="button" id="reset-shortcuts">全部复位</button>
+              <button class="btn btn-secondary" type="button" id="open-chrome-shortcuts">Chrome 快捷键页</button>
+            </div>
+          </div>
+          <div class="grid shortcut-grid">
+            <label class="field">
+              <span>保存划线原文</span>
+              <div class="secret-row">
+                <input class="input shortcut" name="saveSelectionShortcut" readonly placeholder="点击后按下新组合键" />
+                <button class="btn btn-secondary recapture-shortcut" type="button" data-target="saveSelectionShortcut">重录</button>
+                <button class="btn btn-ghost reset-shortcut" type="button" data-target="saveSelectionShortcut" data-default="Cmd+Shift+O">复位</button>
+              </div>
+            </label>
+            <label class="field">
+              <span>总结当前页面</span>
+              <div class="secret-row">
+                <input class="input shortcut" name="summarizePageShortcut" readonly placeholder="点击后按下新组合键" />
+                <button class="btn btn-secondary recapture-shortcut" type="button" data-target="summarizePageShortcut">重录</button>
+                <button class="btn btn-ghost reset-shortcut" type="button" data-target="summarizePageShortcut" data-default="Cmd+Shift+P">复位</button>
+              </div>
+            </label>
+          </div>
+          <p class="hint">默认：划线 ⌘⇧O（Windows 为 Ctrl+Shift+O），总结 ⌘⇧P。点「重录」可反复设置；点「复位」回到默认。改完后请保存。</p>
+        </section>
+
+        <section class="card panel" id="guide">
+          <p class="kicker">05 / Setup</p>
+          <h2>接入说明</h2>
+          <ol class="steps">
+            <li>在飞书开放平台创建企业自建应用，开通 <code>docx:document</code>、<code>docx:document.block:convert</code>；若文档是 wiki 链接，再开通 wiki 读权限。</li>
+            <li>发布应用版本，并把目标云文档「分享」给该应用（添加文档协作者）。</li>
+            <li>把 App ID、App Secret 和文档链接填到本页，点「测试连接」。</li>
+            <li>配置任意兼容 OpenAI 的模型后，即可划线保存或总结网页。</li>
+          </ol>
+        </section>
+
+        <section class="card panel" id="debug">
+          <div class="panel-head">
+            <div>
+              <p class="kicker">06 / Debug</p>
+              <h2>调试日志</h2>
+            </div>
+            <div class="secret-row">
+              <button class="btn btn-secondary" type="button" id="refresh-logs">刷新日志</button>
+              <button class="btn btn-ghost" type="button" id="clear-logs">清空</button>
+            </div>
+          </div>
+          <p class="hint">写入失败时看这里。密钥不会入日志。</p>
+          <textarea class="textarea" id="debug-log-view" readonly spellcheck="false" placeholder="还没有日志。请先刷新扩展，再点一次功能。"></textarea>
+        </section>
+
+        <div class="save-bar">
+          <p class="status" id="save-status" role="status" aria-live="polite"></p>
+          <button class="btn" type="submit" id="save-btn">保存设置</button>
+        </div>
+      </form>
+    </div>
+    <script src="lib/defaults.js"></script>
+    <script src="lib/shortcuts.js"></script>
+    <script src="options.js"></script>
+  </body>
+</html>

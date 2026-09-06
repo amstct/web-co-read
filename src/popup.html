@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>XQcoread</title>
+    <link rel="stylesheet" href="ui.css" />
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="hero">
+        <div class="brand">
+          <img src="../icons/icon48.png" alt="" width="32" height="32" />
+          <div>
+            <p class="kicker">Co-read capture</p>
+            <h1>XQcoread</h1>
+          </div>
+        </div>
+        <button class="icon-btn" id="open-settings" aria-label="打开设置">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H8a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V8c.2.6.7 1 1.5 1.1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path>
+          </svg>
+        </button>
+      </header>
+
+      <div class="chips" id="status-chips">
+        <span class="chip" id="chip-feishu"><span class="dot"></span>飞书未配置</span>
+        <span class="chip" id="chip-llm"><span class="dot"></span>模型未配置</span>
+      </div>
+
+      <section class="card page-card">
+        <p class="kicker">当前页面</p>
+        <h2 id="page-title">未获取到标签页</h2>
+        <p class="url" id="page-url">打开任意网页后即可总结或划线保存</p>
+        <div class="actions">
+          <button class="btn" id="summarize-tab">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5"></path><path d="M4 19h16"></path><path d="M8 15l3-7 3 4 2-3 4 6"></path></svg>
+            总结当前页
+          </button>
+          <button class="btn btn-secondary" id="save-selection">保存划线</button>
+        </div>
+        <p class="hint" id="shortcut-hint"></p>
+      </section>
+
+      <section class="card">
+        <p class="kicker">从链接总结</p>
+        <form id="url-form" class="url-form">
+          <label class="sr-only" for="url-input">网页链接</label>
+          <input class="input" id="url-input" type="url" placeholder="https:// 粘贴要提炼的网页" required />
+          <button class="btn" type="submit" id="summarize-url">写入摘要</button>
+        </form>
+      </section>
+
+      <section class="history">
+        <div class="history-head">
+          <p class="kicker">最近写入</p>
+        </div>
+        <ul id="activity-list" class="activity"></ul>
+      </section>
+
+      <p class="status" id="global-status" role="status" aria-live="polite"></p>
+    </div>
+    <script src="popup.js"></script>
+  </body>
+</html>

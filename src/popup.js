@@ -1,0 +1,135 @@
+const $ = (id) => document.getElementById(id);
+
+function send(type, payload = {}) {
+  return new Promise((resolve, reject) => {
+    if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage) {
+      reject(new Error("请在 Chrome 扩展中打开此页面"));
+      return;
+    }
+    chrome.runtime.sendMessage({ type, ...payload }, (response) => {
+      const error = chrome.runtime.lastError;
+      if (error) {
+        reject(new Error(error.message));
+        return;
+      }
+      if (!response?.ok) {
+        reject(new Error(response?.error || "操作失败"));
+        return;
+      }
+      resolve(response);
+    });
+  });
+}
+
+function setStatus(text, kind = "") {
+  const el = $("global-status");
+  el.textContent = text || "";
+  el.className = `status ${kind}`.trim();
+}
+
+function setBusy(busy) {
+  ["summarize-tab", "save-selection", "summarize-url"].forEach((id) => {
+    $(id).disabled = busy;
+  });
+}
+
+function formatTime(ts) {
+  const date = new Date(ts);
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+function renderChips(settings) {
+  const feishuReady = Boolean(settings.feishuAppId && settings.feishuAppSecret && settings.feishuDocUrl);
+  const localLlm = /:11434\b|ollama/i.test(settings.llmBaseUrl || "");
+  const llmReady = Boolean(settings.llmModel && settings.llmBaseUrl && (localLlm || settings.llmApiKey));
+  const feishu = $("chip-feishu");
+  const llm = $("chip-llm");
+  feishu.className = `chip ${feishuReady ? "ok" : "warn"}`;
+  llm.className = `chip ${llmReady ? "ok" : "warn"}`;
+  feishu.innerHTML = `<span class="dot"></span>${feishuReady ? "飞书已配置" : "飞书未配置"}`;
+  llm.innerHTML = `<span class="dot"></span>${llmReady ? "模型已配置" : "模型未配置"}`;
+}
+
+function renderShortcuts(settings) {
+  const save = settings.saveSelectionShortcut || "Cmd+Shift+O";
+  const summary = settings.summarizePageShortcut || "Cmd+Shift+P";
+  $("shortcut-hint").textContent = `划线后按 ${save} 保存原文；在页面按 ${summary} 生成摘要。`;
+}
+
+function renderActivity(activity = []) {
+  const list = $("activity-list");
+  if (!activity.length) {
+    list.innerHTML = `<li class="empty">还没有写入记录。划线或总结后会出现在这里。</li>`;
+    return;
+  }
+  list.innerHTML = activity
+    .slice(0, 6)
+    .map((item) => {
+      const kind = item.type === "quote" ? "划线" : "摘要";
+      const state = item.status === "error" ? "失败" : "成功";
+      return `<li>
+        <div class="meta"><span>${kind} · ${state}</span><span>${formatTime(item.at)}</span></div>
+        <div class="title">${escapeHtml(item.title || "未命名页面")}</div>
+        <p class="preview">${escapeHtml(item.preview || "")}</p>
+      </li>`;
+    })
+    .join("");
+}
+
+function escapeHtml(text) {
+  return String(text)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+async function loadPageInfo() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab) return;
+  $("page-title").textContent = tab.title || "未命名页面";
+  $("page-url").textContent = tab.url || "";
+}
+
+async function refresh() {
+  const [{ settings }, { activity }] = await Promise.all([
+    send("XQ_GET_SETTINGS"),
+    send("XQ_GET_ACTIVITY")
+  ]);
+  renderChips(settings);
+  renderShortcuts(settings);
+  renderActivity(activity);
+}
+
+async function run(label, task) {
+  setBusy(true);
+  setStatus(`${label}中…`);
+  try {
+    const result = await task();
+    if (result?.activity) renderActivity(result.activity);
+    setStatus(`${label}完成`, "ok");
+  } catch (error) {
+    setStatus(error.message, "error");
+  } finally {
+    setBusy(false);
+  }
+}
+
+$("open-settings").addEventListener("click", () => send("XQ_OPEN_OPTIONS"));
+$("summarize-tab").addEventListener("click", () => run("总结当前页", () => send("XQ_SUMMARIZE_TAB")));
+$("save-selection").addEventListener("click", () => run("保存划线", () => send("XQ_SAVE_SELECTION")));
+$("url-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const url = $("url-input").value.trim();
+  run("总结链接", () => send("XQ_SUMMARIZE_URL", { url }));
+});
+
+if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage) {
+  $("page-title").textContent = "示例：一篇待共读的文章";
+  $("page-url").textContent = "https://example.com/article";
+  renderChips({ feishuAppId: "cli", feishuAppSecret: "x", feishuDocUrl: "https://", llmApiKey: "k", llmModel: "gpt-4o-mini" });
+  renderShortcuts({ saveSelectionShortcut: "Cmd+Shift+O", summarizePageShortcut: "Cmd+Shift+P" });
+  renderActivity([]);
+} else {
+  loadPageInfo().catch(() => {});
+  refresh().catch((error) => setStatus(error.message, "error"));
+}
