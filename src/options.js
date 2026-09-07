@@ -2,7 +2,6 @@ const form = document.getElementById("settings-form");
 const saveStatus = document.getElementById("save-status");
 const feishuStatus = document.getElementById("feishu-status");
 const llmStatus = document.getElementById("llm-status");
-const DEFAULT_PROMPT = DEFAULT_SUMMARY_PROMPT;
 
 function send(type, payload = {}) {
   return new Promise((resolve, reject) => {
@@ -30,6 +29,7 @@ function readForm() {
   const settings = {};
   for (const [key, value] of data.entries()) settings[key] = String(value).trim();
   settings.summaryPrompt = form.summaryPrompt.value;
+  settings.selectionSummaryPrompt = form.selectionSummaryPrompt.value;
   return settings;
 }
 
@@ -113,11 +113,13 @@ form.querySelectorAll(".reset-shortcut").forEach((button) => {
 document.getElementById("reset-shortcuts").addEventListener("click", () => {
   form.saveSelectionShortcut.value = DEFAULT_SETTINGS.saveSelectionShortcut;
   form.summarizePageShortcut.value = DEFAULT_SETTINGS.summarizePageShortcut;
-  setText(saveStatus, "两个快捷键都已复位为 ⌘⇧O / ⌘⇧P，记得保存。");
+  form.summarizeSelectionShortcut.value = DEFAULT_SETTINGS.summarizeSelectionShortcut;
+  setText(saveStatus, "三个快捷键都已复位为 ⌘⇧O / ⌘⇧P / ⌘⇧K，记得保存。");
 });
 
 document.getElementById("reset-prompt").addEventListener("click", () => {
-  form.summaryPrompt.value = DEFAULT_PROMPT;
+  form.summaryPrompt.value = DEFAULT_SUMMARY_PROMPT;
+  form.selectionSummaryPrompt.value = DEFAULT_SELECTION_SUMMARY_PROMPT;
   setText(saveStatus, "已恢复默认提示词，记得保存。");
 });
 

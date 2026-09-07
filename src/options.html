@@ -17,7 +17,7 @@
             <h1>XQcoread 设置</h1>
           </div>
         </div>
-        <p class="lede">把网页划线和页面摘要，增量写入同一份飞书文档。先完成飞书应用与模型配置，即可开始共读捕获。</p>
+        <p class="lede">把网页划线、划线摘要和页面摘要，增量写入同一份飞书文档。先完成飞书应用与模型配置，即可开始共读捕获。</p>
       </header>
 
       <nav class="toc" aria-label="设置分区">
@@ -132,13 +132,20 @@
               <p class="kicker">03 / Prompt</p>
               <h2>总结提示词</h2>
             </div>
-            <button class="btn btn-ghost" type="button" id="reset-prompt">恢复默认</button>
+            <button class="btn btn-ghost" type="button" id="reset-prompt">全部恢复默认</button>
           </div>
+          <div class="prompt-stack">
           <label class="field">
-            <span>系统提示词</span>
+            <span>整页总结</span>
             <textarea class="textarea" name="summaryPrompt" spellcheck="false"></textarea>
-            <span class="hint">会作为 system prompt 发送给模型。页面标题、URL 和正文由插件自动附上。</span>
+            <span class="hint">总结当前页或粘贴链接时使用。标题、URL 和正文由插件自动附上。</span>
           </label>
+          <label class="field">
+            <span>划线总结</span>
+            <textarea class="textarea" name="selectionSummaryPrompt" spellcheck="false"></textarea>
+            <span class="hint">总结当前划线时使用。只会把划选原文发给模型。</span>
+          </label>
+          </div>
         </section>
 
         <section class="card panel" id="shortcuts">
@@ -169,8 +176,16 @@
                 <button class="btn btn-ghost reset-shortcut" type="button" data-target="summarizePageShortcut" data-default="Cmd+Shift+P">复位</button>
               </div>
             </label>
+            <label class="field">
+              <span>总结当前划线</span>
+              <div class="secret-row">
+                <input class="input shortcut" name="summarizeSelectionShortcut" readonly placeholder="点击后按下新组合键" />
+                <button class="btn btn-secondary recapture-shortcut" type="button" data-target="summarizeSelectionShortcut">重录</button>
+                <button class="btn btn-ghost reset-shortcut" type="button" data-target="summarizeSelectionShortcut" data-default="Cmd+Shift+K">复位</button>
+              </div>
+            </label>
           </div>
-          <p class="hint">默认：划线 ⌘⇧O（Windows 为 Ctrl+Shift+O），总结 ⌘⇧P。点「重录」可反复设置；点「复位」回到默认。改完后请保存。</p>
+          <p class="hint">默认：保存划线 ⌘⇧O，总结整页 ⌘⇧P，总结划线 ⌘⇧K（Windows 把 ⌘ 换成 Ctrl）。点「重录」可反复设置；点「复位」回到默认。改完后请保存。Chrome 命令快捷键也可在 chrome://extensions/shortcuts 中改。</p>
         </section>
 
         <section class="card panel" id="guide">
@@ -180,7 +195,7 @@
             <li>在飞书开放平台创建企业自建应用，开通 <code>docx:document</code>、<code>docx:document.block:convert</code>；若文档是 wiki 链接，再开通 wiki 读权限。</li>
             <li>发布应用版本，并把目标云文档「分享」给该应用（添加文档协作者）。</li>
             <li>把 App ID、App Secret 和文档链接填到本页，点「测试连接」。</li>
-            <li>配置任意兼容 OpenAI 的模型后，即可划线保存或总结网页。</li>
+            <li>配置任意兼容 OpenAI 的模型后，即可保存划线、总结划线或总结网页。</li>
           </ol>
         </section>
 

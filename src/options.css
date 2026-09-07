@@ -76,6 +76,11 @@
   margin-bottom: 18px;
 }
 
+.prompt-stack {
+  display: grid;
+  gap: 16px;
+}
+
 .grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

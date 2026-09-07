@@ -62,6 +62,10 @@ body { min-width: 380px; }
   margin-top: 12px;
 }
 
+.actions .btn-wide {
+  grid-column: 1 / -1;
+}
+
 .hint { margin-top: 10px; }
 
 .url-form {

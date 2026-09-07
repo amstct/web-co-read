@@ -18,11 +18,12 @@ function isRestrictedUrl(url = "") {
 
 async function notify(title, message) {
   try {
-    await chrome.notifications.create({
+    await chrome.notifications.create("xqcoread-status", {
       type: "basic",
       iconUrl: chrome.runtime.getURL("icons/icon128.png"),
       title,
-      message: String(message || "").slice(0, 180)
+      message: String(message || "").slice(0, 180),
+      priority: 2
     });
   } catch {
     // ignore notification permission gaps
@@ -44,6 +45,16 @@ async function toastOnTab(tabId, payload) {
     } catch {
       // restricted pages cannot receive toasts
     }
+  }
+}
+
+async function announce(tab, payload) {
+  const targetId = tab?.id || (await getActiveTab())?.id;
+  await toastOnTab(targetId, payload);
+  if (payload.kind === "success") {
+    await notify("写入成功", payload.text);
+  } else if (payload.kind === "error") {
+    await notify("操作失败", payload.text);
   }
 }
 
@@ -207,13 +218,14 @@ async function collectPageFromUrl(url) {
 }
 
 async function saveSelectionFromTab(tab) {
-  return withLock("write", async () => {
-    await xqLog("info", "action.saveSelection.start", {
-      tabId: tab?.id,
-      url: tab?.url,
-      title: tab?.title
-    });
-    try {
+  await announce(tab, { kind: "progress", text: "正在保存划线原文…", sticky: true });
+  try {
+    return await withLock("write", async () => {
+      await xqLog("info", "action.saveSelection.start", {
+        tabId: tab?.id,
+        url: tab?.url,
+        title: tab?.title
+      });
       const settings = await getSettings();
       const selection = await collectSelection(tab);
       await xqLog("info", "action.saveSelection.gotText", {
@@ -229,34 +241,82 @@ async function saveSelectionFromTab(tab) {
         preview: selection.text.slice(0, 80),
         status: "ok"
       });
-      await toastOnTab(tab.id, { kind: "success", text: "划线原文已写入飞书文档" });
-      await notify("XQcoread", "划线原文已写入飞书文档");
+      await announce(tab, { kind: "success", text: "划线原文已写入飞书文档" });
       await xqLog("info", "action.saveSelection.ok", written);
       return { ok: true, activity };
-    } catch (error) {
-      await xqLog("error", "action.saveSelection.fail", {
-        message: error.message,
-        code: error.code,
-        url: tab?.url
+    });
+  } catch (error) {
+    await xqLog("error", "action.saveSelection.fail", {
+      message: error.message,
+      code: error.code,
+      url: tab?.url
+    });
+    await announce(tab, { kind: "error", text: error.message });
+    throw error;
+  }
+}
+
+async function requireLlmReady(settings) {
+  if (requiresApiKey(settings) && !settings.llmApiKey) {
+    throw new Error("请先在设置中配置模型 API Key");
+  }
+  if (!settings.llmModel?.trim()) throw new Error("请先在设置中填写模型名");
+}
+
+async function summarizeSelectionFromTab(tab) {
+  await announce(tab, { kind: "progress", text: "正在总结当前划线，请稍候…", sticky: true });
+  try {
+    return await withLock("write", async () => {
+      await xqLog("info", "action.summarizeSelection.start", {
+        tabId: tab?.id,
+        url: tab?.url,
+        title: tab?.title
       });
-      throw error;
-    }
-  });
+      const settings = await getSettings();
+      await requireLlmReady(settings);
+      const selection = await collectSelection(tab);
+      await xqLog("info", "action.summarizeSelection.gotText", {
+        chars: selection.text.length,
+        preview: selection.text.slice(0, 80)
+      });
+      const summary = await summarizeSelectionContent(settings, selection);
+      await xqLog("info", "action.summarizeSelection.llm.ok", { summaryChars: summary.length });
+      const markdown = buildSummaryMarkdown({ summary });
+      const written = await appendMarkdownToFeishu(settings, markdown, { preferConvert: true });
+      const activity = await pushActivity({
+        type: "selection-summary",
+        title: selection.title,
+        url: selection.url,
+        preview: summary.slice(0, 80),
+        status: "ok"
+      });
+      await announce(tab, { kind: "success", text: "划线摘要已写入飞书文档" });
+      await xqLog("info", "action.summarizeSelection.ok", written);
+      return { ok: true, activity };
+    });
+  } catch (error) {
+    await xqLog("error", "action.summarizeSelection.fail", {
+      message: error.message,
+      code: error.code,
+      url: tab?.url
+    });
+    await announce(tab, { kind: "error", text: error.message });
+    throw error;
+  }
 }
 
 async function summarizeAndSave({ tab, url }) {
-  return withLock("write", async () => {
-    await xqLog("info", "action.summarize.start", {
-      tabId: tab?.id,
-      url: url || tab?.url,
-      title: tab?.title
-    });
-    try {
+  const toastTab = tab || (await getActiveTab());
+  await announce(toastTab, { kind: "progress", text: "正在总结页面，请稍候…", sticky: true });
+  try {
+    return await withLock("write", async () => {
+      await xqLog("info", "action.summarize.start", {
+        tabId: tab?.id,
+        url: url || tab?.url,
+        title: tab?.title
+      });
       const settings = await getSettings();
-      if (requiresApiKey(settings) && !settings.llmApiKey) {
-        throw new Error("请先在设置中配置模型 API Key");
-      }
-      if (!settings.llmModel?.trim()) throw new Error("请先在设置中填写模型名");
+      await requireLlmReady(settings);
       const page = url ? await collectPageFromUrl(url) : await collectPageFromTab(tab);
       await xqLog("info", "action.summarize.extracted", {
         title: page.title,
@@ -274,23 +334,29 @@ async function summarizeAndSave({ tab, url }) {
         preview: summary.slice(0, 80),
         status: "ok"
       });
-      if (tab?.id) await toastOnTab(tab.id, { kind: "success", text: "页面摘要已写入飞书文档" });
-      await notify("XQcoread", "页面摘要已写入飞书文档");
+      await announce(toastTab, { kind: "success", text: "页面摘要已写入飞书文档" });
       await xqLog("info", "action.summarize.ok", written);
       return { ok: true, activity };
-    } catch (error) {
-      await xqLog("error", "action.summarize.fail", {
-        message: error.message,
-        code: error.code,
-        url: url || tab?.url
-      });
-      throw error;
-    }
-  });
+    });
+  } catch (error) {
+    await xqLog("error", "action.summarize.fail", {
+      message: error.message,
+      code: error.code,
+      url: url || tab?.url
+    });
+    await announce(toastTab, { kind: "error", text: error.message });
+    throw error;
+  }
 }
 
 let lastCommandAt = 0;
 let lastCommandName = "";
+
+function activityTypeForCommand(command) {
+  if (command === "save-selection") return "quote";
+  if (command === "summarize-selection") return "selection-summary";
+  return "summary";
+}
 
 async function handleCommand(command, tab) {
   const now = Date.now();
@@ -303,14 +369,16 @@ async function handleCommand(command, tab) {
       await saveSelectionFromTab(active);
       return;
     }
+    if (command === "summarize-selection") {
+      await summarizeSelectionFromTab(active);
+      return;
+    }
     if (command === "summarize-page") {
       await summarizeAndSave({ tab: active });
     }
   } catch (error) {
-    if (active?.id) await toastOnTab(active.id, { kind: "error", text: error.message });
-    await notify("XQcoread", error.message);
     await pushActivity({
-      type: command === "save-selection" ? "quote" : "summary",
+      type: activityTypeForCommand(command),
       title: active?.title || "",
       url: active?.url || "",
       preview: error.message,
@@ -368,6 +436,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const tab = await getActiveTab();
         await xqLog("info", "msg.SAVE_SELECTION", { url: tab?.url, title: tab?.title, id: tab?.id });
         return saveSelectionFromTab(tab);
+      })());
+    case "XQ_SUMMARIZE_SELECTION":
+      return respond((async () => {
+        const tab = await getActiveTab();
+        await xqLog("info", "msg.SUMMARIZE_SELECTION", { url: tab?.url, title: tab?.title, id: tab?.id });
+        return summarizeSelectionFromTab(tab);
       })());
     case "XQ_SUMMARIZE_TAB":
       return respond((async () => {

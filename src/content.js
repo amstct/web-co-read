@@ -1,4 +1,4 @@
-function showXqToast({ kind = "info", text = "" }) {
+function showXqToast({ kind = "info", text = "", sticky = false }) {
   const hostId = "xqcoread-toast-host";
   let host = document.getElementById(hostId);
   if (!host) {
@@ -11,7 +11,7 @@ function showXqToast({ kind = "info", text = "" }) {
         .wrap {
           position: fixed;
           right: 20px;
-          bottom: 20px;
+          top: 20px;
           z-index: 2147483647;
           display: flex;
           flex-direction: column;
@@ -20,33 +20,65 @@ function showXqToast({ kind = "info", text = "" }) {
           font-family: "Segoe UI", "PingFang SC", "Hiragino Sans GB", sans-serif;
         }
         .toast {
-          min-width: 220px;
-          max-width: 320px;
+          min-width: 240px;
+          max-width: 340px;
           padding: 12px 14px;
-          border-radius: 12px;
+          border-radius: 14px;
           color: #0F3A47;
-          background: rgba(255, 255, 255, 0.92);
-          border: 1px solid rgba(8, 145, 178, 0.22);
-          box-shadow: 0 12px 40px rgba(8, 145, 178, 0.16);
+          background: rgba(255, 255, 255, 0.96);
+          border: 1px solid rgba(8, 145, 178, 0.24);
+          box-shadow: 0 16px 40px rgba(15, 58, 71, 0.16);
           backdrop-filter: blur(16px);
           font-size: 13px;
           line-height: 1.5;
-          transform: translateY(8px);
+          display: grid;
+          grid-template-columns: 22px 1fr;
+          gap: 10px;
+          align-items: start;
+          transform: translateY(-8px);
           opacity: 0;
           animation: in 180ms ease forwards;
         }
         .toast strong {
           display: block;
-          font-size: 12px;
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
-          margin-bottom: 4px;
+          font-size: 13px;
+          font-weight: 700;
+          letter-spacing: 0;
+          text-transform: none;
+          margin-bottom: 2px;
           color: #0E7490;
         }
+        .mark {
+          width: 22px;
+          height: 22px;
+          margin-top: 1px;
+          border-radius: 999px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 13px;
+          font-weight: 700;
+          color: #fff;
+          background: #0E7490;
+        }
+        .toast.progress .mark {
+          background: transparent;
+          border: 2px solid rgba(14, 116, 144, 0.25);
+          border-top-color: #0E7490;
+          animation: spin 700ms linear infinite;
+          color: transparent;
+        }
+        .toast.success { border-color: rgba(5, 150, 105, 0.35); }
+        .toast.success strong { color: #047857; }
+        .toast.success .mark { background: #059669; }
         .toast.error strong { color: #BE123C; }
         .toast.error { border-color: rgba(225, 29, 72, 0.28); }
+        .toast.error .mark { background: #E11D48; }
         @keyframes in {
           to { transform: translateY(0); opacity: 1; }
+        }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
         }
       </style>
       <div class="wrap"></div>
@@ -55,11 +87,33 @@ function showXqToast({ kind = "info", text = "" }) {
   }
 
   const wrap = host.shadowRoot.querySelector(".wrap");
-  const toast = document.createElement("div");
+  let toast = wrap.querySelector(".toast");
+  if (!toast) {
+    toast = document.createElement("div");
+    wrap.appendChild(toast);
+  }
+  const titles = {
+    progress: "处理中",
+    success: "写入成功",
+    error: "失败",
+    info: "XQcoread"
+  };
+  const marks = {
+    progress: "",
+    success: "✓",
+    error: "!",
+    info: "i"
+  };
   toast.className = `toast ${kind}`;
-  toast.innerHTML = `<strong>${kind === "error" ? "FAILED" : "XQCOREAD"}</strong>${escapeHtml(text)}`;
-  wrap.appendChild(toast);
-  setTimeout(() => toast.remove(), 4200);
+  toast.innerHTML = `<span class="mark">${marks[kind] || "i"}</span><div><strong>${titles[kind] || "XQcoread"}</strong>${escapeHtml(text)}</div>`;
+  toast.style.animation = "none";
+  void toast.offsetWidth;
+  toast.style.animation = "";
+  if (toast._timer) clearTimeout(toast._timer);
+  const stay = sticky || kind === "progress";
+  if (!stay) {
+    toast._timer = setTimeout(() => toast.remove(), kind === "success" ? 5200 : 4500);
+  }
 }
 
 function escapeHtml(text) {
@@ -78,16 +132,23 @@ function shouldIgnoreShortcutTarget(target) {
 async function matchShortcut(event) {
   if (isModifierOnly(event) || event.repeat) return;
   const combo = eventToShortcut(event);
-  const settings = await chrome.storage.local.get(["saveSelectionShortcut", "summarizePageShortcut"]);
+  const settings = await chrome.storage.local.get([
+    "saveSelectionShortcut",
+    "summarizePageShortcut",
+    "summarizeSelectionShortcut"
+  ]);
   const saveShortcut = settings.saveSelectionShortcut || DEFAULT_SAVE;
   const summarizeShortcut = settings.summarizePageShortcut || DEFAULT_SUMMARIZE;
+  const summarizeSelectionShortcut = settings.summarizeSelectionShortcut || DEFAULT_SUMMARIZE_SELECTION;
   if (shortcutsEqual(combo, saveShortcut)) return "save-selection";
+  if (shortcutsEqual(combo, summarizeSelectionShortcut)) return "summarize-selection";
   if (shortcutsEqual(combo, summarizeShortcut)) return "summarize-page";
   return null;
 }
 
 const DEFAULT_SAVE = "Cmd+Shift+O";
 const DEFAULT_SUMMARIZE = "Cmd+Shift+P";
+const DEFAULT_SUMMARIZE_SELECTION = "Cmd+Shift+K";
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "XQ_PING") {

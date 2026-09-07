@@ -227,23 +227,44 @@ async function listOllamaModels(settings) {
   return names;
 }
 
-async function summarizePageContent(settings, page) {
-  const prompt = settings.summaryPrompt?.trim() || DEFAULT_SUMMARY_PROMPT;
-  const body = (page.text || "").slice(0, inputCharBudget(settings));
-  if (!body || body.length < 40) {
-    throw new Error("页面正文过短，无法总结。请确认页面已加载完成。");
-  }
+async function summarizeTextContent(settings, { title, url, text, prompt, heading, minLength, tooShort }) {
+  const body = String(text || "").slice(0, inputCharBudget(settings));
+  if (!body || body.length < minLength) throw new Error(tooShort);
   const user = [
-    `标题：${page.title || "未命名"}`,
-    `URL：${page.url || ""}`,
+    `标题：${title || "未命名"}`,
+    `URL：${url || ""}`,
     "",
-    "正文：",
+    `${heading}：`,
     body
   ].join("\n");
   return chatComplete(settings, {
     system: prompt,
     user,
     maxTokens: outputTokens(settings)
+  });
+}
+
+async function summarizePageContent(settings, page) {
+  return summarizeTextContent(settings, {
+    title: page.title,
+    url: page.url,
+    text: page.text,
+    prompt: settings.summaryPrompt?.trim() || DEFAULT_SUMMARY_PROMPT,
+    heading: "正文",
+    minLength: 40,
+    tooShort: "页面正文过短，无法总结。请确认页面已加载完成。"
+  });
+}
+
+async function summarizeSelectionContent(settings, selection) {
+  return summarizeTextContent(settings, {
+    title: selection.title,
+    url: selection.url,
+    text: typeof stripXueqiuFooter === "function" ? stripXueqiuFooter(selection.text) : selection.text,
+    prompt: settings.selectionSummaryPrompt?.trim() || DEFAULT_SELECTION_SUMMARY_PROMPT,
+    heading: "划选原文",
+    minLength: 8,
+    tooShort: "划选内容过短，无法总结。请先划选一段文字。"
   });
 }
 

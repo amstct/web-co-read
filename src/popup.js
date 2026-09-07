@@ -28,7 +28,7 @@ function setStatus(text, kind = "") {
 }
 
 function setBusy(busy) {
-  ["summarize-tab", "save-selection", "summarize-url"].forEach((id) => {
+  ["summarize-tab", "summarize-selection", "save-selection", "summarize-url"].forEach((id) => {
     $(id).disabled = busy;
   });
 }
@@ -53,7 +53,14 @@ function renderChips(settings) {
 function renderShortcuts(settings) {
   const save = settings.saveSelectionShortcut || "Cmd+Shift+O";
   const summary = settings.summarizePageShortcut || "Cmd+Shift+P";
-  $("shortcut-hint").textContent = `划线后按 ${save} 保存原文；在页面按 ${summary} 生成摘要。`;
+  const selectionSummary = settings.summarizeSelectionShortcut || "Cmd+Shift+K";
+  $("shortcut-hint").textContent = `划线后按 ${save} 保存原文，按 ${selectionSummary} 总结划线；在页面按 ${summary} 总结整页。`;
+}
+
+function activityKindLabel(type) {
+  if (type === "quote") return "划线";
+  if (type === "selection-summary") return "划线摘要";
+  return "摘要";
 }
 
 function renderActivity(activity = []) {
@@ -65,7 +72,7 @@ function renderActivity(activity = []) {
   list.innerHTML = activity
     .slice(0, 6)
     .map((item) => {
-      const kind = item.type === "quote" ? "划线" : "摘要";
+      const kind = activityKindLabel(item.type);
       const state = item.status === "error" ? "失败" : "成功";
       return `<li>
         <div class="meta"><span>${kind} · ${state}</span><span>${formatTime(item.at)}</span></div>
@@ -102,11 +109,11 @@ async function refresh() {
 
 async function run(label, task) {
   setBusy(true);
-  setStatus(`${label}中…`);
+  setStatus(`${label}中，请稍候…`, "busy");
   try {
     const result = await task();
     if (result?.activity) renderActivity(result.activity);
-    setStatus(`${label}完成`, "ok");
+    setStatus("写入成功", "ok");
   } catch (error) {
     setStatus(error.message, "error");
   } finally {
@@ -116,6 +123,7 @@ async function run(label, task) {
 
 $("open-settings").addEventListener("click", () => send("XQ_OPEN_OPTIONS"));
 $("summarize-tab").addEventListener("click", () => run("总结当前页", () => send("XQ_SUMMARIZE_TAB")));
+$("summarize-selection").addEventListener("click", () => run("总结划线", () => send("XQ_SUMMARIZE_SELECTION")));
 $("save-selection").addEventListener("click", () => run("保存划线", () => send("XQ_SAVE_SELECTION")));
 $("url-form").addEventListener("submit", (event) => {
   event.preventDefault();
@@ -127,7 +135,11 @@ if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage) {
   $("page-title").textContent = "示例：一篇待共读的文章";
   $("page-url").textContent = "https://example.com/article";
   renderChips({ feishuAppId: "cli", feishuAppSecret: "x", feishuDocUrl: "https://", llmApiKey: "k", llmModel: "gpt-4o-mini" });
-  renderShortcuts({ saveSelectionShortcut: "Cmd+Shift+O", summarizePageShortcut: "Cmd+Shift+P" });
+  renderShortcuts({
+    saveSelectionShortcut: "Cmd+Shift+O",
+    summarizePageShortcut: "Cmd+Shift+P",
+    summarizeSelectionShortcut: "Cmd+Shift+K"
+  });
   renderActivity([]);
 } else {
   loadPageInfo().catch(() => {});

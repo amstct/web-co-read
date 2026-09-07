@@ -216,8 +216,32 @@ button, input, textarea, select {
   line-height: 1.55;
 }
 
-.status.error { color: var(--danger); }
-.status.ok { color: var(--success); }
+.status.busy,
+.status.ok,
+.status.error {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.92);
+  font-weight: 600;
+}
+
+.status.busy {
+  color: var(--primary-deep);
+  border-color: rgba(8, 145, 178, 0.28);
+}
+
+.status.error {
+  color: var(--danger);
+  border-color: rgba(225, 29, 72, 0.28);
+  background: rgba(255, 241, 242, 0.9);
+}
+
+.status.ok {
+  color: var(--success);
+  border-color: rgba(5, 150, 105, 0.28);
+  background: var(--success-soft);
+}
 
 .icon-btn {
   width: 40px;

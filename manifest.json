@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "XQcoread",
-  "version": "1.0.0",
-  "description": "划线保存原文，或一键总结网页，增量写入飞书文档。",
+  "version": "1.1.0",
+  "description": "划线保存原文，总结划线或整页，增量写入飞书文档。",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
@@ -47,6 +47,13 @@
         "mac": "Command+Shift+P"
       },
       "description": "总结当前页面并写入飞书文档"
+    },
+    "summarize-selection": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+K",
+        "mac": "Command+Shift+K"
+      },
+      "description": "总结当前划线并写入飞书文档"
     }
   },
   "permissions": [
