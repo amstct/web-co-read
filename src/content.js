@@ -123,8 +123,8 @@ function escapeHtml(text) {
     .replace(/>/g, "&gt;");
 }
 
-// 快捷键无需避开输入框：剪贴板兜底场景下，用户常常刚在编辑器/聊天框里复制完，
-// 焦点还在输入框内。组合键只会匹配插件注册的 Cmd/Ctrl+Shift+字母，不影响正常打字。
+// 快捷键无需避开输入框：组合键只会匹配插件注册的 Cmd/Ctrl+Shift+字母，
+// 不会与普通打字冲突；按这些组合即代表用户明确想触发捕获。
 
 async function matchShortcut(event) {
   if (isModifierOnly(event) || event.repeat) return;

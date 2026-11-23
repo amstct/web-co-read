@@ -49,6 +49,13 @@ function renderChips(settings) {
   llm.innerHTML = `<span class="dot"></span>${llmReady ? "模型已配置" : "模型未配置"}`;
 }
 
+function renderShortcuts(settings) {
+  const save = settings.saveSelectionShortcut || "Cmd+Shift+O";
+  const summary = settings.summarizePageShortcut || "Cmd+Shift+P";
+  const selectionSummary = settings.summarizeSelectionShortcut || "Cmd+Shift+K";
+  $("shortcut-hint").textContent = `划线后按 ${save} 保存原文，按 ${selectionSummary} 总结划线；在页面按 ${summary} 总结整页。`;
+}
+
 const COMMAND_LABELS = {
   "save-selection": "保存划线",
   "summarize-page": "总结整页",
@@ -79,8 +86,6 @@ async function loadCommands() {
 function activityKindLabel(type) {
   if (type === "quote") return "划线";
   if (type === "selection-summary") return "划线摘要";
-  if (type === "clipboard-quote") return "剪贴板";
-  if (type === "clipboard-summary") return "剪贴板摘要";
   return "摘要";
 }
 
@@ -164,6 +169,8 @@ if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage) {
   renderActivity([]);
 } else {
   loadPageInfo().catch(() => {});
-  refresh().catch((error) => setStatus(error.message, "error"));
-  loadCommands();
+  // 先渲染基础提示，再叠加未绑定命令的警告，避免覆盖
+  refresh()
+    .then(loadCommands)
+    .catch((error) => setStatus(error.message, "error"));
 }

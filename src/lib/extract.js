@@ -81,8 +81,7 @@ function extractSelection() {
       url: location.href
     };
   }
-  // live 标记当前是否真有选区：无选区时后台改走剪贴板兜底，历史缓存不参与判断。
-  return { ...cachedSelection, live: Boolean(live) };
+  return { ...cachedSelection };
 }
 
 if (typeof document !== "undefined") {
