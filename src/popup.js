@@ -28,7 +28,7 @@ function setStatus(text, kind = "") {
 }
 
 function setBusy(busy) {
-  ["summarize-tab", "summarize-selection", "save-selection", "summarize-url", "summarize-clipboard", "save-clipboard"].forEach((id) => {
+  ["summarize-tab", "summarize-selection", "save-selection", "summarize-url"].forEach((id) => {
     $(id).disabled = busy;
   });
 }
@@ -53,14 +53,14 @@ function renderShortcuts(settings) {
   const save = settings.saveSelectionShortcut || "Cmd+Shift+O";
   const summary = settings.summarizePageShortcut || "Cmd+Shift+P";
   const selectionSummary = settings.summarizeSelectionShortcut || "Cmd+Shift+K";
-  const saveClipboard = settings.saveClipboardShortcut || "Cmd+Shift+X";
-  const summarizeClipboard = settings.summarizeClipboardShortcut || "Cmd+Shift+L";
-  $("shortcut-hint").textContent = `划线后按 ${save} 保存原文，按 ${selectionSummary} 总结划线；在页面按 ${summary} 总结整页；复制后按 ${saveClipboard} 保存剪贴板，按 ${summarizeClipboard} 总结剪贴板。`;
+  $("shortcut-hint").textContent = `划线后按 ${save} 保存原文，按 ${selectionSummary} 总结划线（无划线时自动改用剪贴板）；在页面按 ${summary} 总结整页。`;
 }
 
 function activityKindLabel(type) {
   if (type === "quote") return "划线";
   if (type === "selection-summary") return "划线摘要";
+  if (type === "clipboard-quote") return "剪贴板";
+  if (type === "clipboard-summary") return "剪贴板摘要";
   return "摘要";
 }
 
@@ -126,8 +126,6 @@ $("open-settings").addEventListener("click", () => send("XQ_OPEN_OPTIONS"));
 $("summarize-tab").addEventListener("click", () => run("总结当前页", () => send("XQ_SUMMARIZE_TAB")));
 $("summarize-selection").addEventListener("click", () => run("总结划线", () => send("XQ_SUMMARIZE_SELECTION")));
 $("save-selection").addEventListener("click", () => run("保存划线", () => send("XQ_SAVE_SELECTION")));
-$("save-clipboard").addEventListener("click", () => run("保存剪贴板", () => send("XQ_SAVE_CLIPBOARD")));
-$("summarize-clipboard").addEventListener("click", () => run("总结剪贴板", () => send("XQ_SUMMARIZE_CLIPBOARD")));
 $("url-form").addEventListener("submit", (event) => {
   event.preventDefault();
   const url = $("url-input").value.trim();

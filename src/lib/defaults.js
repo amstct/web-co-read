@@ -45,9 +45,7 @@ const DEFAULT_SETTINGS = {
   selectionSummaryPrompt: DEFAULT_SELECTION_SUMMARY_PROMPT,
   saveSelectionShortcut: "Cmd+Shift+O",
   summarizePageShortcut: "Cmd+Shift+P",
-  summarizeSelectionShortcut: "Cmd+Shift+K",
-  saveClipboardShortcut: "Cmd+Shift+X",
-  summarizeClipboardShortcut: "Cmd+Shift+L"
+  summarizeSelectionShortcut: "Cmd+Shift+K"
 };
 
 const ACTIVITY_LIMIT = 20;

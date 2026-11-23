@@ -192,24 +192,8 @@
                 <button class="btn btn-ghost reset-shortcut" type="button" data-target="summarizeSelectionShortcut" data-default="Cmd+Shift+K">复位</button>
               </div>
             </label>
-            <label class="field">
-              <span>保存剪贴板原文</span>
-              <div class="secret-row">
-                <input class="input shortcut" name="saveClipboardShortcut" readonly placeholder="点击后按下新组合键" />
-                <button class="btn btn-secondary recapture-shortcut" type="button" data-target="saveClipboardShortcut">重录</button>
-                <button class="btn btn-ghost reset-shortcut" type="button" data-target="saveClipboardShortcut" data-default="Cmd+Shift+X">复位</button>
-              </div>
-            </label>
-            <label class="field">
-              <span>总结剪贴板</span>
-              <div class="secret-row">
-                <input class="input shortcut" name="summarizeClipboardShortcut" readonly placeholder="点击后按下新组合键" />
-                <button class="btn btn-secondary recapture-shortcut" type="button" data-target="summarizeClipboardShortcut">重录</button>
-                <button class="btn btn-ghost reset-shortcut" type="button" data-target="summarizeClipboardShortcut" data-default="Cmd+Shift+L">复位</button>
-              </div>
-            </label>
           </div>
-          <p class="hint">默认：保存划线 ⌘⇧O，总结整页 ⌘⇧P，总结划线 ⌘⇧K，保存剪贴板 ⌘⇧X，总结剪贴板 ⌘⇧L（Windows 把 ⌘ 换成 Ctrl）。点「重录」可反复设置；点「复位」回到默认。改完后请保存。页面快捷键仅在有焦点的网页上生效；总结剪贴板没有 Chrome 级默认键，需要全局触发时可在 chrome://extensions/shortcuts 手动指定。</p>
+          <p class="hint">默认：保存划线 ⌘⇧O，总结整页 ⌘⇧P，总结划线 ⌘⇧K（Windows 把 ⌘ 换成 Ctrl）。点「重录」可反复设置；点「复位」回到默认。改完后请保存。Chrome 命令快捷键也可在 chrome://extensions/shortcuts 中改。页面没有划线时，保存/总结划线的快捷键会自动改用剪贴板内容，剪贴板无需独立快捷键。</p>
         </section>
 
         <section class="card panel" id="guide">

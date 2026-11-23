@@ -95,15 +95,42 @@ async function collectFromTab(tabId, type) {
   return chrome.tabs.sendMessage(tabId, { type });
 }
 
-async function collectSelection(tab) {
+// 采集来源统一入口：优先页面当前真实选区；没有选区时兜底读剪贴板。
+// 只认 live 选区，历史缓存选区会让剪贴板兜底失效。
+async function collectCaptureSource(tab) {
   if (!tab?.id) throw new Error("没有可用的标签页");
-  if (isRestrictedUrl(tab.url)) throw new Error("当前页面受浏览器保护，无法读取划线内容");
-  const result = await collectFromTab(tab.id, "XQ_GET_SELECTION");
-  if (!result?.text) throw new Error("请先在页面中划选一段文字");
+  let selectionText = "";
+  let selectionTitle = "";
+  let selectionUrl = "";
+  if (!isRestrictedUrl(tab.url)) {
+    try {
+      const result = await collectFromTab(tab.id, "XQ_GET_SELECTION");
+      if (result?.live && result.text) {
+        selectionText = result.text;
+        selectionTitle = result.title || "";
+        selectionUrl = result.url || "";
+      }
+    } catch {
+      // 页面不可注入（如 chrome:// 内部页），直接走剪贴板
+    }
+  }
+  if (selectionText) {
+    return {
+      source: "selection",
+      text: selectionText,
+      title: selectionTitle || tab.title || "",
+      url: selectionUrl || tab.url || ""
+    };
+  }
+  const text = (await readClipboardText()).trim();
+  if (!text) {
+    throw new Error("请先在页面中划选文字，或先复制内容到剪贴板");
+  }
   return {
-    text: result.text,
-    title: result.title || tab.title || "",
-    url: result.url || tab.url || ""
+    source: "clipboard",
+    text,
+    title: tab.title || "剪贴板",
+    url: tab.url || ""
   };
 }
 
@@ -233,100 +260,8 @@ async function readClipboardText() {
   throw lastError || new Error("读取剪贴板失败");
 }
 
-async function saveClipboardFromTab(tab) {
-  await announce(tab, { kind: "progress", text: "正在保存剪贴板原文…", sticky: true });
-  try {
-    return await withLock("write", async () => {
-      await xqLog("info", "action.saveClipboard.start", {
-        tabId: tab?.id,
-        url: tab?.url,
-        title: tab?.title
-      });
-      const settings = await getSettings();
-      const text = (await readClipboardText()).trim();
-      if (!text) throw new Error("剪贴板是空的，请先复制一段内容");
-      await xqLog("info", "action.saveClipboard.gotText", {
-        chars: text.length,
-        preview: text.slice(0, 80)
-      });
-      const markdown = buildQuoteMarkdown({ text });
-      const written = await appendMarkdownToFeishu(settings, markdown, { preferConvert: false });
-      const activity = await pushActivity({
-        type: "clipboard-quote",
-        title: tab?.title || "剪贴板",
-        url: tab?.url || "",
-        preview: text.slice(0, 80),
-        status: "ok"
-      });
-      await announce(tab, { kind: "success", text: "剪贴板原文已写入飞书文档" });
-      await xqLog("info", "action.saveClipboard.ok", written);
-      return { ok: true, activity };
-    });
-  } catch (error) {
-    await xqLog("error", "action.saveClipboard.fail", {
-      message: error.message,
-      code: error.code,
-      url: tab?.url
-    });
-    await announce(tab, { kind: "error", text: error.message });
-    throw error;
-  }
-}
-
-async function summarizeClipboardFromTab(tab) {
-  await announce(tab, { kind: "progress", text: "正在总结剪贴板内容，请稍候…", sticky: true });
-  try {
-    return await withLock("write", async () => {
-      await xqLog("info", "action.summarizeClipboard.start", {
-        tabId: tab?.id,
-        url: tab?.url,
-        title: tab?.title
-      });
-      const settings = await getSettings();
-      await requireLlmReady(settings);
-      const raw = (await readClipboardText()).trim();
-      if (!raw) throw new Error("剪贴板是空的，请先复制一段内容");
-      const text = typeof stripXueqiuFooter === "function" ? stripXueqiuFooter(raw) : raw;
-      await xqLog("info", "action.summarizeClipboard.gotText", {
-        chars: text.length,
-        preview: text.slice(0, 80)
-      });
-      const summary = await summarizeTextContent(settings, {
-        title: tab?.title || "剪贴板",
-        url: tab?.url || "",
-        text,
-        prompt: settings.selectionSummaryPrompt?.trim() || DEFAULT_SELECTION_SUMMARY_PROMPT,
-        heading: "剪贴板内容",
-        minLength: 8,
-        tooShort: "剪贴板内容过短，无法总结。请先复制一段文字。"
-      });
-      await xqLog("info", "action.summarizeClipboard.llm.ok", { summaryChars: summary.length });
-      const markdown = buildSummaryMarkdown({ summary });
-      const written = await appendMarkdownToFeishu(settings, markdown, { preferConvert: true });
-      const activity = await pushActivity({
-        type: "clipboard-summary",
-        title: tab?.title || "剪贴板",
-        url: tab?.url || "",
-        preview: summary.slice(0, 80),
-        status: "ok"
-      });
-      await announce(tab, { kind: "success", text: "剪贴板摘要已写入飞书文档" });
-      await xqLog("info", "action.summarizeClipboard.ok", written);
-      return { ok: true, activity };
-    });
-  } catch (error) {
-    await xqLog("error", "action.summarizeClipboard.fail", {
-      message: error.message,
-      code: error.code,
-      url: tab?.url
-    });
-    await announce(tab, { kind: "error", text: error.message });
-    throw error;
-  }
-}
-
 async function saveSelectionFromTab(tab) {
-  await announce(tab, { kind: "progress", text: "正在保存划线原文…", sticky: true });
+  await announce(tab, { kind: "progress", text: "正在保存划线/剪贴板原文…", sticky: true });
   try {
     return await withLock("write", async () => {
       await xqLog("info", "action.saveSelection.start", {
@@ -335,22 +270,26 @@ async function saveSelectionFromTab(tab) {
         title: tab?.title
       });
       const settings = await getSettings();
-      const selection = await collectSelection(tab);
+      const capture = await collectCaptureSource(tab);
       await xqLog("info", "action.saveSelection.gotText", {
-        chars: selection.text.length,
-        preview: selection.text.slice(0, 80)
+        source: capture.source,
+        chars: capture.text.length,
+        preview: capture.text.slice(0, 80)
       });
-      const markdown = buildQuoteMarkdown(selection);
+      const markdown = buildQuoteMarkdown(capture);
       const written = await appendMarkdownToFeishu(settings, markdown, { preferConvert: false });
       const activity = await pushActivity({
-        type: "quote",
-        title: selection.title,
-        url: selection.url,
-        preview: selection.text.slice(0, 80),
+        type: capture.source === "clipboard" ? "clipboard-quote" : "quote",
+        title: capture.title,
+        url: capture.url,
+        preview: capture.text.slice(0, 80),
         status: "ok"
       });
-      await announce(tab, { kind: "success", text: "划线原文已写入飞书文档" });
-      await xqLog("info", "action.saveSelection.ok", written);
+      await announce(tab, {
+        kind: "success",
+        text: capture.source === "clipboard" ? "剪贴板原文已写入飞书文档" : "划线原文已写入飞书文档"
+      });
+      await xqLog("info", "action.saveSelection.ok", { ...written, source: capture.source });
       return { ok: true, activity };
     });
   } catch (error) {
@@ -372,7 +311,7 @@ async function requireLlmReady(settings) {
 }
 
 async function summarizeSelectionFromTab(tab) {
-  await announce(tab, { kind: "progress", text: "正在总结当前划线，请稍候…", sticky: true });
+  await announce(tab, { kind: "progress", text: "正在总结划线/剪贴板，请稍候…", sticky: true });
   try {
     return await withLock("write", async () => {
       await xqLog("info", "action.summarizeSelection.start", {
@@ -382,24 +321,40 @@ async function summarizeSelectionFromTab(tab) {
       });
       const settings = await getSettings();
       await requireLlmReady(settings);
-      const selection = await collectSelection(tab);
+      const capture = await collectCaptureSource(tab);
+      const text = typeof stripXueqiuFooter === "function" ? stripXueqiuFooter(capture.text) : capture.text;
       await xqLog("info", "action.summarizeSelection.gotText", {
-        chars: selection.text.length,
-        preview: selection.text.slice(0, 80)
+        source: capture.source,
+        chars: text.length,
+        preview: text.slice(0, 80)
       });
-      const summary = await summarizeSelectionContent(settings, selection);
+      const summary = await summarizeTextContent(settings, {
+        title: capture.title,
+        url: capture.url,
+        text,
+        prompt: settings.selectionSummaryPrompt?.trim() || DEFAULT_SELECTION_SUMMARY_PROMPT,
+        heading: capture.source === "clipboard" ? "剪贴板内容" : "划选原文",
+        minLength: 8,
+        tooShort:
+          capture.source === "clipboard"
+            ? "剪贴板内容过短，无法总结。请先复制一段文字。"
+            : "划选内容过短，无法总结。请先划选一段文字。"
+      });
       await xqLog("info", "action.summarizeSelection.llm.ok", { summaryChars: summary.length });
       const markdown = buildSummaryMarkdown({ summary });
       const written = await appendMarkdownToFeishu(settings, markdown, { preferConvert: true });
       const activity = await pushActivity({
-        type: "selection-summary",
-        title: selection.title,
-        url: selection.url,
+        type: capture.source === "clipboard" ? "clipboard-summary" : "selection-summary",
+        title: capture.title,
+        url: capture.url,
         preview: summary.slice(0, 80),
         status: "ok"
       });
-      await announce(tab, { kind: "success", text: "划线摘要已写入飞书文档" });
-      await xqLog("info", "action.summarizeSelection.ok", written);
+      await announce(tab, {
+        kind: "success",
+        text: capture.source === "clipboard" ? "剪贴板摘要已写入飞书文档" : "划线摘要已写入飞书文档"
+      });
+      await xqLog("info", "action.summarizeSelection.ok", { ...written, source: capture.source });
       return { ok: true, activity };
     });
   } catch (error) {
@@ -463,8 +418,6 @@ let lastCommandName = "";
 function activityTypeForCommand(command) {
   if (command === "save-selection") return "quote";
   if (command === "summarize-selection") return "selection-summary";
-  if (command === "save-clipboard") return "clipboard-quote";
-  if (command === "summarize-clipboard") return "clipboard-summary";
   return "summary";
 }
 
@@ -481,14 +434,6 @@ async function handleCommand(command, tab) {
     }
     if (command === "summarize-selection") {
       await summarizeSelectionFromTab(active);
-      return;
-    }
-    if (command === "save-clipboard") {
-      await saveClipboardFromTab(active);
-      return;
-    }
-    if (command === "summarize-clipboard") {
-      await summarizeClipboardFromTab(active);
       return;
     }
     if (command === "summarize-page") {
@@ -571,18 +516,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return respond((async () => {
         await xqLog("info", "msg.SUMMARIZE_URL", { url: message.url });
         return summarizeAndSave({ url: message.url, tab: sender.tab });
-      })());
-    case "XQ_SAVE_CLIPBOARD":
-      return respond((async () => {
-        const tab = await getActiveTab();
-        await xqLog("info", "msg.SAVE_CLIPBOARD", { url: tab?.url, title: tab?.title, id: tab?.id });
-        return saveClipboardFromTab(tab);
-      })());
-    case "XQ_SUMMARIZE_CLIPBOARD":
-      return respond((async () => {
-        const tab = await getActiveTab();
-        await xqLog("info", "msg.SUMMARIZE_CLIPBOARD", { url: tab?.url, title: tab?.title, id: tab?.id });
-        return summarizeClipboardFromTab(tab);
       })());
     case "XQ_PROBE_WRITE":
       return respond(
