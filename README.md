@@ -32,20 +32,22 @@ Chrome 插件：在网页上划线保存原文，总结当前划线，或把整�
 
 ## 总结模型
 
-页面总结走兼容 OpenAI `chat/completions` 的接口。可填：
+页面总结走兼容 OpenAI `chat/completions` 的接口，默认从局域网 **New API** 网关接入：
 
-- OpenAI：`https://api.openai.com/v1`
-- DeepSeek：`https://api.deepseek.com/v1`
-- 其他代理或国产方舟，按厂商文档填写 Base URL、模型名和 API Key
-- **本地 Ollama**：Base URL 填 `http://127.0.0.1:11434/v1`，API Key 可留空，模型名与 `ollama list` 一致
+1. Base URL 填 New API 服务器地址，例如 `http://<服务器IP>:3000/v1`（默认端口 3000，按实际部署调整）
+2. API Key 填 New API 后台「令牌」页创建的令牌（`sk-…`），注意令牌的分组和额度
+3. 模型名必须是该令牌可用的模型，设置页切到「New API（局域网）」后点「拉取模型列表」即可自动获取（走 `GET /v1/models`）
 
-Ollama 默认会拦截 Chrome 插件请求并返回 **403**。在 macOS 终端执行：
+其他 OpenAI 兼容服务同样可用：OpenAI `https://api.openai.com/v1`、DeepSeek `https://api.deepseek.com/v1`、其他代理或国产方舟，按厂商文档填写 Base URL、模型名和 API Key。
 
-```bash
-launchctl setenv OLLAMA_ORIGINS "chrome-extension://*"
-```
+**思考模型（Qwen3 等）**：总结不需要推理链，插件默认在请求里带 `enable_thinking=false`（兼容 vLLM 的 `chat_template_kwargs` 与 DashScope 的顶层写法），并在响应端剥离 `<think>` 残留，避免思考过程混入摘要、拖慢生成。普通模型会忽略该参数；若你的网关严格校验未知字段报 400，可在设置里关掉「禁用模型思考」。
 
-然后从菜单栏完全退出 Ollama 再重新打开。设置页可切到「Ollama 本地」并一键拉取本机模型列表。
+
+排错提示：
+
+- **401 / 令牌无效**：检查令牌是否正确、额度是否用完、分组是否包含所选模型
+- **无法连接**：确认浏览器所在机器与 New API 服务器在同一局域网，且防火墙放行了端口
+- **CORS / 403**：若 New API 前面有反向代理，确认放行了 `chrome-extension://` 来源的跨域请求
 
 ## 使用
 

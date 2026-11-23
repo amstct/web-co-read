@@ -89,6 +89,23 @@
 
 .field-span { grid-column: 1 / -1; }
 
+.checkbox-field .secret-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.checkbox-field .checkbox {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary-deep);
+  margin: 0;
+}
+
+.checkbox-field .checkbox-label {
+  font-size: 13px;
+}
+
 .shortcut-grid .field { grid-column: auto; }
 
 .steps {

@@ -84,26 +84,26 @@
               <span>接口类型</span>
               <div class="secret-row">
                 <select class="select" id="llm-provider">
+                  <option value="newapi">New API（局域网）</option>
                   <option value="openai">OpenAI 兼容（云端）</option>
-                  <option value="ollama">Ollama 本地</option>
                 </select>
-                <button class="btn btn-secondary" type="button" id="list-ollama-models" hidden>拉取本地模型</button>
+                <button class="btn btn-secondary" type="button" id="list-llm-models" hidden>拉取模型列表</button>
               </div>
             </label>
             <label class="field">
               <span>API Base URL</span>
-              <input class="input" name="llmBaseUrl" placeholder="https://api.openai.com/v1" />
-              <span class="hint">云端填厂商 Base。Ollama 填 http://127.0.0.1:11434/v1</span>
+              <input class="input" name="llmBaseUrl" placeholder="http://192.168.1.10:3000/v1" />
+              <span class="hint">局域网 New API 填 http://&lt;服务器IP&gt;:3000/v1。云端填厂商 Base。</span>
             </label>
             <label class="field">
               <span>模型名</span>
-              <input class="input" name="llmModel" list="ollama-model-list" placeholder="gpt-4o-mini 或 qwen2.5" />
-              <datalist id="ollama-model-list"></datalist>
+              <input class="input" name="llmModel" list="llm-model-list" placeholder="gpt-4o-mini 或 deepseek-chat" />
+              <datalist id="llm-model-list"></datalist>
             </label>
             <label class="field">
               <span>上下文长度（tokens）</span>
               <input class="input" name="llmContextTokens" type="number" min="2048" step="1024" placeholder="131072" />
-              <span class="hint">发给 Ollama 的 num_ctx。128K 填 131072。改完后建议执行 ollama stop 模型名，再总结一次。</span>
+              <span class="hint">用于截断发送给模型的正文，避免超窗口。128K 模型填 131072。</span>
             </label>
             <label class="field field-span">
               <span>API Key</span>
@@ -113,15 +113,23 @@
                   <svg class="icon" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7 10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                 </button>
               </div>
-              <span class="hint">本地 Ollama 可留空或填 ollama。</span>
+              <span class="hint">填 New API「令牌」页创建的令牌（sk-…）。</span>
+            </label>
+            <label class="field field-span checkbox-field">
+              <span>思考模式</span>
+              <div class="secret-row">
+                <input class="checkbox" type="checkbox" name="llmDisableThinking" checked />
+                <span class="checkbox-label">禁用模型思考（推荐）</span>
+              </div>
+              <span class="hint">Qwen3 等思考模型会先长篇推理再作答。开启后请求自动带 enable_thinking=false 并剥离思考残留，摘要更快也更干净；普通模型会忽略该参数。若网关严格校验未知字段报错，可关闭此项。</span>
             </label>
           </div>
-          <div class="callout" id="ollama-help" hidden>
-            <p><strong>Ollama 被 Chrome 插件访问时必须放开来源，否则会 403。</strong></p>
-            <p>1. 终端执行：<code>launchctl setenv OLLAMA_ORIGINS "chrome-extension://*"</code></p>
-            <p>2. 菜单栏 Ollama → Quit Ollama，再重新打开。</p>
-            <p>3. 模型名必须和 <code>ollama list</code> 完全一致。</p>
-            <p>4. 上下文长度要和 Ollama 一致（128K = 131072）。改大后执行 <code>ollama stop 模型名</code>，让模型按新窗口重新加载。</p>
+          <div class="callout" id="new-api-help" hidden>
+            <p><strong>局域网 New API 接入要点。</strong></p>
+            <p>1. Base URL 填 New API 服务器地址，例如 <code>http://192.168.1.10:3000/v1</code>（默认端口 3000，按实际部署调整）。</p>
+            <p>2. API Key 填 New API 后台「令牌」页创建的令牌（sk-…），注意令牌的分组和额度。</p>
+            <p>3. 模型名必须是该令牌可用模型，点「拉取模型列表」可自动获取。</p>
+            <p>4. 若报 401 检查令牌；报无法连接则确认本机与服务器同处一个局域网、防火墙已放行端口。</p>
           </div>
           <p class="status" id="llm-status" role="status" aria-live="polite"></p>
         </section>

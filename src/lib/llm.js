@@ -1,41 +1,18 @@
-const OLLAMA_DEFAULT_ORIGIN = "http://127.0.0.1:11434";
-const OLLAMA_403_HINT = `Ollama 拒绝了 Chrome 插件请求（403）。这是它的跨域保护，不是模型名或 API Key 写错。
-
-请在终端执行：
-launchctl setenv OLLAMA_ORIGINS "chrome-extension://*"
-
-然后点菜单栏 Ollama 图标 → Quit Ollama，再重新打开 Ollama。
-若你是用终端启动的，请改用：
-OLLAMA_ORIGINS="chrome-extension://*" ollama serve
-
-设置里的 Base URL 填：http://127.0.0.1:11434/v1
-API Key 可留空或填 ollama；模型名填终端执行 ollama list 看到的名称。`;
-
-function isOllamaEndpoint(raw) {
-  return /:11434\b|ollama/i.test(String(raw || ""));
-}
-
-function ollamaOrigin(raw) {
-  const value = String(raw || "").trim().replace(/\/+$/, "");
-  if (!value) return OLLAMA_DEFAULT_ORIGIN;
-  try {
-    const url = new URL(value);
-    return `${url.protocol}//${url.host}`;
-  } catch {
-    return value.replace(/\/(v\d+|api)$/i, "") || OLLAMA_DEFAULT_ORIGIN;
-  }
-}
+const NEW_API_DEFAULT_BASE_URL = "http://192.168.1.10:3000/v1";
 
 function normalizeLlmBaseUrl(raw) {
   let base = String(raw || "").trim().replace(/\/+$/, "");
   if (!base) throw new Error("请先填写模型 API Base URL");
-  if (isOllamaEndpoint(base)) return `${ollamaOrigin(base)}/v1`;
   if (!/\/v\d+$/i.test(base) && !base.includes("/openai")) base += "/v1";
   return base;
 }
 
-function requiresApiKey(settings) {
-  return !isOllamaEndpoint(settings?.llmBaseUrl);
+function llmAuthHeaders(settings) {
+  const headers = { "Content-Type": "application/json" };
+  if (settings.llmApiKey?.trim()) {
+    headers.Authorization = `Bearer ${settings.llmApiKey.trim()}`;
+  }
+  return headers;
 }
 
 function contextTokens(settings) {
@@ -56,18 +33,20 @@ function inputCharBudget(settings) {
   return Math.max(8000, Math.floor((ctx - reserved) * 0.95));
 }
 
-function ollamaRuntimeOptions(settings, maxTokens) {
-  return {
-    temperature: 0.3,
-    num_ctx: contextTokens(settings),
-    num_predict: maxTokens
-  };
+function stripThinkTags(text) {
+  let out = String(text || "").replace(/<think>[\s\S]*?<\/think>/gi, "");
+  // 部分 vLLM 部署会把思考开标签吃掉，正文前只剩一个 </think>：取最后一个 </think> 之后的内容。
+  const closeIdx = out.lastIndexOf("</think>");
+  if (closeIdx >= 0) out = out.slice(closeIdx + "</think>".length);
+  // 只出现 <think> 说明思考被 max_tokens 截断，后面不会再有正文。
+  const openIdx = out.indexOf("<think>");
+  if (openIdx >= 0) out = out.slice(0, openIdx);
+  return out.trim();
 }
 
-function stripThinkTags(text) {
-  return String(text || "")
-    .replace(/<think>[\s\S]*?<\/think>/gi, "")
-    .trim();
+function thinkingDisabled(settings) {
+  const value = settings?.llmDisableThinking;
+  return !(value === false || value === "false" || value === "0" || value === "off");
 }
 
 function firstNonEmptyText(...values) {
@@ -99,13 +78,8 @@ function extractOpenAiText(payload) {
   );
 }
 
-function extractOllamaNativeText(payload) {
-  const message = payload?.message || {};
-  return firstNonEmptyText(flattenMessageContent(message.content), message.thinking, message.reasoning);
-}
-
-function llmErrorFromResponse(response, payload, url) {
-  if (response.status === 403 && isOllamaEndpoint(url)) return OLLAMA_403_HINT;
+function llmErrorFromResponse(response, payload) {
+  if (response.status === 401) return "令牌无效（401）。请检查设置里的 API Key 是否为 New API 后台创建的令牌。";
   return (
     payload.error?.message ||
     payload.message ||
@@ -125,106 +99,67 @@ async function readJson(response) {
   }
 }
 
-async function chatCompleteOpenAi(settings, { system, user, maxTokens = 1200 }) {
-  if (requiresApiKey(settings) && !settings.llmApiKey) {
-    throw new Error("请先在设置中填写模型 API Key");
+async function chatComplete(settings, { system, user, maxTokens = 1200 }) {
+  if (!settings.llmApiKey?.trim()) {
+    throw new Error("请先在设置中填写 New API 令牌（API Key）");
   }
   const base = normalizeLlmBaseUrl(settings.llmBaseUrl);
   const model = settings.llmModel?.trim();
-  if (!model) throw new Error("请先填写模型名，例如 qwen2.5 或 gpt-4o-mini");
+  if (!model) throw new Error("请先填写模型名，可点「拉取模型列表」选择");
 
-  const headers = { "Content-Type": "application/json" };
-  if (settings.llmApiKey?.trim()) {
-    headers.Authorization = `Bearer ${settings.llmApiKey.trim()}`;
+  const body = {
+    model,
+    temperature: 0.3,
+    max_tokens: maxTokens,
+    messages: [
+      { role: "system", content: system || DEFAULT_SUMMARY_PROMPT },
+      { role: "user", content: user }
+    ]
+  };
+  if (thinkingDisabled(settings)) {
+    // 总结不需要推理链。vLLM 看 chat_template_kwargs，DashScope 系看顶层 enable_thinking，
+    // 两种写法都带上，网关透传任一即可关闭；普通模型会忽略这两个字段。
+    body.enable_thinking = false;
+    body.chat_template_kwargs = { enable_thinking: false };
   }
-
-  const ollama = isOllamaEndpoint(settings.llmBaseUrl);
   const response = await fetch(`${base}/chat/completions`, {
     method: "POST",
-    headers,
-    body: JSON.stringify({
-      model,
-      temperature: 0.3,
-      max_tokens: maxTokens,
-      ...(ollama
-        ? {
-            reasoning_effort: "none",
-            think: false,
-            options: ollamaRuntimeOptions(settings, maxTokens)
-          }
-        : {}),
-      messages: [
-        { role: "system", content: system || DEFAULT_SUMMARY_PROMPT },
-        { role: "user", content: user }
-      ]
-    })
+    headers: llmAuthHeaders(settings),
+    body: JSON.stringify(body)
+  }).catch((error) => {
+    throw new Error(
+      `无法连接 New API（${base}）。请确认服务已启动、本机能访问该局域网地址，且端口/路径正确。（${error.message}）`
+    );
   });
   const payload = await readJson(response);
   if (!response.ok) {
-    throw new Error(llmErrorFromResponse(response, payload, base));
+    throw new Error(llmErrorFromResponse(response, payload));
   }
   const text = extractOpenAiText(payload);
   if (!text) throw new Error("模型没有返回可用内容");
   return text;
 }
 
-async function chatCompleteOllamaNative(settings, { system, user, maxTokens = 1200 }) {
-  const origin = ollamaOrigin(settings.llmBaseUrl);
-  const model = settings.llmModel?.trim();
-  if (!model) throw new Error("请先填写模型名。可在终端执行 ollama list 查看。");
-  const response = await fetch(`${origin}/api/chat`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model,
-      stream: false,
-      think: false,
-      messages: [
-        { role: "system", content: system || DEFAULT_SUMMARY_PROMPT },
-        { role: "user", content: user }
-      ],
-      options: ollamaRuntimeOptions(settings, maxTokens)
-    })
+async function listLlmModels(settings) {
+  const base = normalizeLlmBaseUrl(settings.llmBaseUrl || NEW_API_DEFAULT_BASE_URL);
+  if (!settings.llmApiKey?.trim()) {
+    throw new Error("请先在设置中填写 New API 令牌（API Key）");
+  }
+  const response = await fetch(`${base}/models`, { headers: llmAuthHeaders(settings) }).catch((error) => {
+    throw new Error(
+      `无法连接 New API（${base}）。请确认服务已启动、本机能访问该局域网地址，且端口/路径正确。（${error.message}）`
+    );
   });
   const payload = await readJson(response);
   if (!response.ok) {
-    throw new Error(llmErrorFromResponse(response, payload, origin));
+    throw new Error(llmErrorFromResponse(response, payload));
   }
-  const text = extractOllamaNativeText(payload);
-  if (!text) throw new Error("Ollama 没有返回可用内容，请确认模型名与 ollama list 一致，且模型已拉取完成。");
-  return text;
-}
-
-async function chatComplete(settings, params) {
-  if (isOllamaEndpoint(settings.llmBaseUrl)) {
-    try {
-      return await chatCompleteOpenAi(settings, params);
-    } catch (error) {
-      if (/403/.test(error.message) || error.message.includes("跨域保护")) throw error;
-      if (/Failed to fetch|NetworkError|Load failed/i.test(error.message)) {
-        throw new Error("无法连接 Ollama。请确认应用已打开，Base URL 为 http://127.0.0.1:11434/v1");
-      }
-      return chatCompleteOllamaNative(settings, params);
-    }
+  const raw = Array.isArray(payload?.data) ? payload.data : [];
+  const ids = raw.map((item) => item?.id).filter(Boolean);
+  if (!ids.length) {
+    throw new Error("New API 已连通，但没有可用模型。请先在 New API 后台为该令牌的分组配置渠道和模型。");
   }
-  return chatCompleteOpenAi(settings, params);
-}
-
-async function listOllamaModels(settings) {
-  const origin = ollamaOrigin(settings.llmBaseUrl || OLLAMA_DEFAULT_ORIGIN);
-  let response;
-  try {
-    response = await fetch(`${origin}/api/tags`);
-  } catch {
-    throw new Error("无法连接 Ollama。请确认应用已打开，Base URL 为 http://127.0.0.1:11434/v1");
-  }
-  const payload = await readJson(response);
-  if (!response.ok) {
-    throw new Error(llmErrorFromResponse(response, payload, origin));
-  }
-  const names = (payload.models || []).map((item) => item.name).filter(Boolean);
-  if (!names.length) throw new Error("Ollama 已连通，但还没有本地模型。请先执行 ollama pull <模型名>");
-  return names;
+  return ids;
 }
 
 async function summarizeTextContent(settings, { title, url, text, prompt, heading, minLength, tooShort }) {
@@ -269,8 +204,8 @@ async function summarizeSelectionContent(settings, selection) {
 }
 
 async function testLlmConnection(settings) {
-  if (isOllamaEndpoint(settings.llmBaseUrl) && !settings.llmModel?.trim()) {
-    const models = await listOllamaModels(settings);
+  if (!settings.llmModel?.trim()) {
+    const models = await listLlmModels(settings);
     return `已连通，请选择模型：${models.slice(0, 8).join("、")}`;
   }
   return chatComplete(settings, {

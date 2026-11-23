@@ -257,7 +257,7 @@ async function saveSelectionFromTab(tab) {
 }
 
 async function requireLlmReady(settings) {
-  if (requiresApiKey(settings) && !settings.llmApiKey) {
+  if (!settings.llmApiKey?.trim()) {
     throw new Error("请先在设置中配置模型 API Key");
   }
   if (!settings.llmModel?.trim()) throw new Error("请先在设置中填写模型名");
@@ -424,9 +424,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           reply
         }))
       );
-    case "XQ_LIST_OLLAMA_MODELS":
+    case "XQ_LIST_LLM_MODELS":
       return respond(
-        listOllamaModels({ ...DEFAULT_SETTINGS, ...(message.settings || {}) }).then((models) => ({
+        listLlmModels({ ...DEFAULT_SETTINGS, ...(message.settings || {}) }).then((models) => ({
           ok: true,
           models
         }))

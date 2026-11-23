@@ -40,8 +40,7 @@ function formatTime(ts) {
 
 function renderChips(settings) {
   const feishuReady = Boolean(settings.feishuAppId && settings.feishuAppSecret && settings.feishuDocUrl);
-  const localLlm = /:11434\b|ollama/i.test(settings.llmBaseUrl || "");
-  const llmReady = Boolean(settings.llmModel && settings.llmBaseUrl && (localLlm || settings.llmApiKey));
+  const llmReady = Boolean(settings.llmModel && settings.llmBaseUrl && settings.llmApiKey);
   const feishu = $("chip-feishu");
   const llm = $("chip-llm");
   feishu.className = `chip ${feishuReady ? "ok" : "warn"}`;

@@ -30,6 +30,7 @@ function readForm() {
   for (const [key, value] of data.entries()) settings[key] = String(value).trim();
   settings.summaryPrompt = form.summaryPrompt.value;
   settings.selectionSummaryPrompt = form.selectionSummaryPrompt.value;
+  settings.llmDisableThinking = form.elements.llmDisableThinking.checked ? "true" : "false";
   return settings;
 }
 
@@ -37,6 +38,10 @@ function fillForm(settings) {
   for (const [key, value] of Object.entries(settings)) {
     const field = form.elements[key];
     if (!field) continue;
+    if (field.type === "checkbox") {
+      field.checked = String(value) !== "false";
+      continue;
+    }
     field.value = value ?? "";
   }
 }
@@ -159,40 +164,40 @@ document.getElementById("test-llm").addEventListener("click", async () => {
   }
 });
 
-const OLLAMA_URL = "http://127.0.0.1:11434/v1";
+const NEW_API_URL = "http://192.168.1.10:3000/v1";
 const providerSelect = document.getElementById("llm-provider");
-const ollamaHelp = document.getElementById("ollama-help");
-const listOllamaBtn = document.getElementById("list-ollama-models");
+const newApiHelp = document.getElementById("new-api-help");
+const listModelsBtn = document.getElementById("list-llm-models");
 
-function isOllamaUrl(url) {
-  return /:11434\b|ollama/i.test(url || "");
+function isNewApiUrl(url) {
+  return /new[-_ ]?api|:3000\b|:3001\b/i.test(url || "");
 }
 
-function syncOllamaUi() {
-  const ollama = providerSelect.value === "ollama" || isOllamaUrl(form.llmBaseUrl.value);
-  providerSelect.value = ollama ? "ollama" : "openai";
-  ollamaHelp.hidden = !ollama;
-  listOllamaBtn.hidden = !ollama;
+function syncProviderUi() {
+  const isNewApi = providerSelect.value === "newapi" || isNewApiUrl(form.llmBaseUrl.value);
+  providerSelect.value = isNewApi ? "newapi" : "openai";
+  newApiHelp.hidden = !isNewApi;
+  listModelsBtn.hidden = !isNewApi;
 }
 
 providerSelect.addEventListener("change", () => {
-  if (providerSelect.value === "ollama") {
-    if (!isOllamaUrl(form.llmBaseUrl.value)) form.llmBaseUrl.value = OLLAMA_URL;
-    if (form.llmModel.value === "gpt-4o-mini") form.llmModel.value = "";
+  if (providerSelect.value === "newapi") {
+    if (!isNewApiUrl(form.llmBaseUrl.value)) form.llmBaseUrl.value = NEW_API_URL;
   }
-  syncOllamaUi();
+  syncProviderUi();
 });
 
-form.llmBaseUrl.addEventListener("input", syncOllamaUi);
+form.llmBaseUrl.addEventListener("input", syncProviderUi);
 
-listOllamaBtn.addEventListener("click", async () => {
-  setText(llmStatus, "正在读取 Ollama 模型列表…");
+listModelsBtn.addEventListener("click", async () => {
+  setText(llmStatus, "正在读取模型列表…");
   try {
-    const result = await send("XQ_LIST_OLLAMA_MODELS", { settings: collectSettingsForTest() });
-    const list = document.getElementById("ollama-model-list");
+    const result = await send("XQ_LIST_LLM_MODELS", { settings: collectSettingsForTest() });
+    const list = document.getElementById("llm-model-list");
     list.innerHTML = result.models.map((name) => `<option value="${name}"></option>`).join("");
     if (!form.llmModel.value && result.models[0]) form.llmModel.value = result.models[0];
-    setText(llmStatus, `已发现：${result.models.join("、")}`, "ok");
+    const shown = result.models.slice(0, 12).join("、");
+    setText(llmStatus, `已发现 ${result.models.length} 个模型：${shown}${result.models.length > 12 ? " …" : ""}`, "ok");
   } catch (error) {
     setText(llmStatus, error.message, "error");
   }
@@ -247,12 +252,12 @@ document.getElementById("clear-logs").addEventListener("click", async () => {
 
 if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage) {
   fillForm(DEFAULT_SETTINGS);
-  syncOllamaUi();
+  syncProviderUi();
 } else {
   send("XQ_GET_SETTINGS")
     .then(({ settings }) => {
       fillForm(settings);
-      syncOllamaUi();
+      syncProviderUi();
       loadDebugLogs();
     })
     .catch((error) => setText(saveStatus, error.message, "error"));
