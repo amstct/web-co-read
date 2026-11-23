@@ -86,6 +86,8 @@ async function loadCommands() {
 function activityKindLabel(type) {
   if (type === "quote") return "划线";
   if (type === "selection-summary") return "划线摘要";
+  if (type === "clipboard-quote") return "剪贴板";
+  if (type === "clipboard-summary") return "剪贴板摘要";
   return "摘要";
 }
 

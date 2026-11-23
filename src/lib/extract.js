@@ -72,6 +72,19 @@ function extractPageContent() {
 
 let cachedSelection = { text: "", title: "", url: "" };
 
+// 独立打开的 PDF（contentType 为 application/pdf）或页面里内嵌的 PDF：
+// 划选发生在 PDF 查看器表面，DOM 选区读不到，需要后台改走剪贴板兜底。
+function detectPdfPage() {
+  try {
+    return (
+      document.contentType === "application/pdf" ||
+      Boolean(document.querySelector('embed[type="application/pdf"]'))
+    );
+  } catch {
+    return false;
+  }
+}
+
 function extractSelection() {
   const live = (window.getSelection?.()?.toString() || "").trim();
   if (live) {
@@ -81,7 +94,7 @@ function extractSelection() {
       url: location.href
     };
   }
-  return { ...cachedSelection };
+  return { ...cachedSelection, isPdf: detectPdfPage() };
 }
 
 if (typeof document !== "undefined") {

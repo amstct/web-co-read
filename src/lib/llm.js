@@ -187,15 +187,15 @@ async function summarizePageContent(settings, page) {
   });
 }
 
-async function summarizeSelectionContent(settings, selection) {
+async function summarizeSelectionContent(settings, selection, overrides = {}) {
   return summarizeTextContent(settings, {
     title: selection.title,
     url: selection.url,
     text: typeof stripXueqiuFooter === "function" ? stripXueqiuFooter(selection.text) : selection.text,
     prompt: settings.selectionSummaryPrompt?.trim() || DEFAULT_SELECTION_SUMMARY_PROMPT,
-    heading: "划选原文",
+    heading: overrides.heading || "划选原文",
     minLength: 8,
-    tooShort: "划选内容过短，无法总结。请先划选一段文字。"
+    tooShort: overrides.tooShort || "划选内容过短，无法总结。请先划选一段文字。"
   });
 }
 

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "XQcoread",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "划线保存原文，总结划线或整页，增量写入飞书文档。",
   "icons": {
     "16": "icons/icon16.png",
@@ -39,7 +39,7 @@
         "default": "Ctrl+Shift+O",
         "mac": "Command+Shift+O"
       },
-      "description": "保存划线原文到飞书文档"
+      "description": "保存划线原文到飞书文档（PDF 页面改用剪贴板内容）"
     },
     "summarize-page": {
       "suggested_key": {
@@ -53,7 +53,7 @@
         "default": "Ctrl+Shift+K",
         "mac": "Command+Shift+K"
       },
-      "description": "总结当前划线并写入飞书文档"
+      "description": "总结当前划线（PDF 页面改用剪贴板内容）并写入飞书文档"
     }
   },
   "permissions": [
@@ -63,7 +63,8 @@
     "tabs",
     "offscreen",
     "notifications",
-    "commands"
+    "commands",
+    "clipboardRead"
   ],
   "host_permissions": ["http://*/*", "https://*/*"],
   "web_accessible_resources": [

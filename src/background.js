@@ -95,12 +95,58 @@ async function collectFromTab(tabId, type) {
   return chrome.tabs.sendMessage(tabId, { type });
 }
 
+async function readClipboardText() {
+  await ensureOffscreen();
+  let lastError;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const result = await chrome.runtime.sendMessage({ type: "XQ_READ_CLIPBOARD" });
+      if (result?.error) throw new Error(result.error);
+      if (typeof result?.text === "string") return result.text.slice(0, PAGE_TEXT_LIMIT);
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, 160));
+    }
+  }
+  throw lastError || new Error("读取剪贴板失败");
+}
+
+// Chrome 内置 PDF 查看器等页面无法注入内容脚本，划线读不到；
+// 这类页面改读剪贴板（用户在 PDF 中划选后按 ⌘C 再按快捷键）。
+// 普通网页能读到内容脚本响应：没划线就报错，绝不偷读剪贴板。
+async function collectClipboardCapture(tab) {
+  const text = (await readClipboardText()).trim();
+  if (!text) {
+    throw new Error("请先在页面中划选文字；若在 PDF 中，请划选后按 ⌘C 复制，再按快捷键");
+  }
+  return {
+    via: "clipboard",
+    text,
+    title: tab.title || "",
+    url: tab.url || ""
+  };
+}
+
 async function collectSelection(tab) {
   if (!tab?.id) throw new Error("没有可用的标签页");
-  if (isRestrictedUrl(tab.url)) throw new Error("当前页面受浏览器保护，无法读取划线内容");
-  const result = await collectFromTab(tab.id, "XQ_GET_SELECTION");
-  if (!result?.text) throw new Error("请先在页面中划选一段文字");
+  if (isRestrictedUrl(tab.url)) {
+    return collectClipboardCapture(tab);
+  }
+  let result;
+  try {
+    result = await collectFromTab(tab.id, "XQ_GET_SELECTION");
+  } catch {
+    // 内容脚本无法注入，改用剪贴板兜底
+    return collectClipboardCapture(tab);
+  }
+  if (!result?.text) {
+    // PDF 页面的选区在查看器表面里，DOM 读不到（isPdf 兜底兼容旧缓存脚本用 URL 判断）
+    const looksLikePdf = /\.pdf(\?|#|$)/i.test(tab.url || "");
+    if (result?.isPdf || looksLikePdf) return collectClipboardCapture(tab);
+    throw new Error("请先在页面中划选一段文字");
+  }
   return {
+    via: "selection",
     text: result.text,
     title: result.title || tab.title || "",
     url: result.url || tab.url || ""
@@ -138,8 +184,8 @@ async function ensureOffscreen() {
   if (await hasOffscreen()) return;
   await chrome.offscreen.createDocument({
     url: OFFSCREEN_PATH,
-    reasons: ["DOM_PARSER"],
-    justification: "解析目标网页 HTML，提取可读正文后进行总结"
+    reasons: ["DOM_PARSER", "CLIPBOARD"],
+    justification: "解析目标网页 HTML 提取正文，以及在内置 PDF 查看器等无法注入的页面读取剪贴板内容"
   });
 }
 
@@ -227,21 +273,28 @@ async function saveSelectionFromTab(tab) {
         title: tab?.title
       });
       const settings = await getSettings();
-      const selection = await collectSelection(tab);
+      const capture = await collectSelection(tab);
       await xqLog("info", "action.saveSelection.gotText", {
-        chars: selection.text.length,
-        preview: selection.text.slice(0, 80)
+        via: capture.via,
+        chars: capture.text.length,
+        preview: capture.text.slice(0, 80)
       });
-      const markdown = buildQuoteMarkdown(selection);
+      const markdown = buildQuoteMarkdown(capture);
       const written = await appendMarkdownToFeishu(settings, markdown, { preferConvert: false });
       const activity = await pushActivity({
-        type: "quote",
-        title: selection.title,
-        url: selection.url,
-        preview: selection.text.slice(0, 80),
+        type: capture.via === "clipboard" ? "clipboard-quote" : "quote",
+        title: capture.title,
+        url: capture.url,
+        preview: capture.text.slice(0, 80),
         status: "ok"
       });
-      await announce(tab, { kind: "success", text: "划线原文已写入飞书文档" });
+      await announce(tab, {
+        kind: "success",
+        text:
+          capture.via === "clipboard"
+            ? `当前页面无法读取划线，已保存剪贴板内容：${capture.text.slice(0, 40)}${capture.text.length > 40 ? "…" : ""}`
+            : "划线原文已写入飞书文档"
+      });
       await xqLog("info", "action.saveSelection.ok", written);
       return { ok: true, activity };
     });
@@ -274,23 +327,36 @@ async function summarizeSelectionFromTab(tab) {
       });
       const settings = await getSettings();
       await requireLlmReady(settings);
-      const selection = await collectSelection(tab);
+      const capture = await collectSelection(tab);
       await xqLog("info", "action.summarizeSelection.gotText", {
-        chars: selection.text.length,
-        preview: selection.text.slice(0, 80)
+        via: capture.via,
+        chars: capture.text.length,
+        preview: capture.text.slice(0, 80)
       });
-      const summary = await summarizeSelectionContent(settings, selection);
+      const summary = await summarizeSelectionContent(
+        settings,
+        capture,
+        capture.via === "clipboard"
+          ? { heading: "剪贴板内容", tooShort: "剪贴板内容过短。请划选后按 ⌘C 复制，再按快捷键。" }
+          : {}
+      );
       await xqLog("info", "action.summarizeSelection.llm.ok", { summaryChars: summary.length });
       const markdown = buildSummaryMarkdown({ summary });
       const written = await appendMarkdownToFeishu(settings, markdown, { preferConvert: true });
       const activity = await pushActivity({
-        type: "selection-summary",
-        title: selection.title,
-        url: selection.url,
+        type: capture.via === "clipboard" ? "clipboard-summary" : "selection-summary",
+        title: capture.title,
+        url: capture.url,
         preview: summary.slice(0, 80),
         status: "ok"
       });
-      await announce(tab, { kind: "success", text: "划线摘要已写入飞书文档" });
+      await announce(tab, {
+        kind: "success",
+        text:
+          capture.via === "clipboard"
+            ? "当前页面无法读取划线，已总结剪贴板内容并写入飞书文档"
+            : "划线摘要已写入飞书文档"
+      });
       await xqLog("info", "action.summarizeSelection.ok", written);
       return { ok: true, activity };
     });
