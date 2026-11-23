@@ -119,7 +119,9 @@ document.getElementById("reset-shortcuts").addEventListener("click", () => {
   form.saveSelectionShortcut.value = DEFAULT_SETTINGS.saveSelectionShortcut;
   form.summarizePageShortcut.value = DEFAULT_SETTINGS.summarizePageShortcut;
   form.summarizeSelectionShortcut.value = DEFAULT_SETTINGS.summarizeSelectionShortcut;
-  setText(saveStatus, "三个快捷键都已复位为 ⌘⇧O / ⌘⇧P / ⌘⇧K，记得保存。");
+  form.saveClipboardShortcut.value = DEFAULT_SETTINGS.saveClipboardShortcut;
+  form.summarizeClipboardShortcut.value = DEFAULT_SETTINGS.summarizeClipboardShortcut;
+  setText(saveStatus, "五个快捷键都已复位为 ⌘⇧O / ⌘⇧P / ⌘⇧K / ⌘⇧X / ⌘⇧L，记得保存。");
 });
 
 document.getElementById("reset-prompt").addEventListener("click", () => {

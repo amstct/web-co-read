@@ -135,20 +135,28 @@ async function matchShortcut(event) {
   const settings = await chrome.storage.local.get([
     "saveSelectionShortcut",
     "summarizePageShortcut",
-    "summarizeSelectionShortcut"
+    "summarizeSelectionShortcut",
+    "saveClipboardShortcut",
+    "summarizeClipboardShortcut"
   ]);
   const saveShortcut = settings.saveSelectionShortcut || DEFAULT_SAVE;
   const summarizeShortcut = settings.summarizePageShortcut || DEFAULT_SUMMARIZE;
   const summarizeSelectionShortcut = settings.summarizeSelectionShortcut || DEFAULT_SUMMARIZE_SELECTION;
+  const saveClipboardShortcut = settings.saveClipboardShortcut || DEFAULT_SAVE_CLIPBOARD;
+  const summarizeClipboardShortcut = settings.summarizeClipboardShortcut || DEFAULT_SUMMARIZE_CLIPBOARD;
   if (shortcutsEqual(combo, saveShortcut)) return "save-selection";
   if (shortcutsEqual(combo, summarizeSelectionShortcut)) return "summarize-selection";
   if (shortcutsEqual(combo, summarizeShortcut)) return "summarize-page";
+  if (shortcutsEqual(combo, saveClipboardShortcut)) return "save-clipboard";
+  if (shortcutsEqual(combo, summarizeClipboardShortcut)) return "summarize-clipboard";
   return null;
 }
 
 const DEFAULT_SAVE = "Cmd+Shift+O";
 const DEFAULT_SUMMARIZE = "Cmd+Shift+P";
 const DEFAULT_SUMMARIZE_SELECTION = "Cmd+Shift+K";
+const DEFAULT_SAVE_CLIPBOARD = "Cmd+Shift+X";
+const DEFAULT_SUMMARIZE_CLIPBOARD = "Cmd+Shift+L";
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "XQ_PING") {
