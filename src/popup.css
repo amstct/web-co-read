@@ -68,6 +68,8 @@ body { min-width: 380px; }
 
 .hint { margin-top: 10px; }
 
+.hint.warn { color: #b45309; }
+
 .url-form {
   display: grid;
   gap: 8px;

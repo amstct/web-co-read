@@ -49,11 +49,31 @@ function renderChips(settings) {
   llm.innerHTML = `<span class="dot"></span>${llmReady ? "模型已配置" : "模型未配置"}`;
 }
 
-function renderShortcuts(settings) {
-  const save = settings.saveSelectionShortcut || "Cmd+Shift+O";
-  const summary = settings.summarizePageShortcut || "Cmd+Shift+P";
-  const selectionSummary = settings.summarizeSelectionShortcut || "Cmd+Shift+K";
-  $("shortcut-hint").textContent = `划线后按 ${save} 保存原文，按 ${selectionSummary} 总结划线（无划线时自动改用剪贴板）；在页面按 ${summary} 总结整页。`;
+const COMMAND_LABELS = {
+  "save-selection": "保存划线",
+  "summarize-page": "总结整页",
+  "summarize-selection": "总结划线"
+};
+
+function renderShortcutWarning(commands = []) {
+  const unbound = commands.filter((c) => !c.shortcut && COMMAND_LABELS[c.name]);
+  const hint = $("shortcut-hint");
+  if (!unbound.length) {
+    hint.classList.remove("warn");
+    return;
+  }
+  const names = unbound.map((c) => `${COMMAND_LABELS[c.name]}（${c.shortcut || "未绑定"}）`).join("、");
+  hint.classList.add("warn");
+  hint.textContent += ` ⚠︎ ${names} 的 Chrome 级快捷键未绑定，请在 chrome://extensions/shortcuts 中手动设置。`;
+}
+
+async function loadCommands() {
+  try {
+    const { commands } = await send("XQ_GET_COMMANDS");
+    renderShortcutWarning(commands);
+  } catch {
+    // ignore
+  }
 }
 
 function activityKindLabel(type) {
@@ -145,4 +165,5 @@ if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage) {
 } else {
   loadPageInfo().catch(() => {});
   refresh().catch((error) => setStatus(error.message, "error"));
+  loadCommands();
 }

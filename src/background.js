@@ -423,9 +423,14 @@ function activityTypeForCommand(command) {
 
 async function handleCommand(command, tab) {
   const now = Date.now();
-  if (command === lastCommandName && now - lastCommandAt < 900) return;
+  if (command === lastCommandName && now - lastCommandAt < 900) {
+    await xqLog("info", "command.debounced", { command });
+    return;
+  }
   lastCommandAt = now;
   lastCommandName = command;
+  // 尽早记录：若调试日志里连这条都没有，说明按键根本没到达插件（快捷键未绑定或被系统/浏览器截获）
+  await xqLog("info", "command.received", { command, tabId: tab?.id, url: tab?.url });
   const active = tab || (await getActiveTab());
   try {
     if (command === "save-selection") {
@@ -452,6 +457,14 @@ async function handleCommand(command, tab) {
 
 chrome.commands.onCommand.addListener((command, tab) => {
   handleCommand(command, tab);
+});
+
+// 启动时检查 Chrome 命令快捷键是否都在绑定状态，丢失时记入调试日志
+chrome.commands.getAll().then((commands) => {
+  const unbound = commands.filter((c) => !c.shortcut && !c.name.startsWith("_"));
+  if (unbound.length) {
+    xqLog("error", "commands.unbound", { names: unbound.map((c) => c.name) });
+  }
 });
 
 chrome.runtime.onInstalled.addListener(async (details) => {
@@ -526,6 +539,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       );
     case "XQ_GET_DEBUG_LOGS":
       return respond(getDebugLogs().then((logs) => ({ ok: true, logs })));
+    case "XQ_GET_COMMANDS":
+      return respond(chrome.commands.getAll().then((commands) => ({ ok: true, commands })));
     case "XQ_CLEAR_DEBUG_LOGS":
       return respond(clearDebugLogs().then(() => ({ ok: true })));
     case "XQ_CONTENT_SHORTCUT":

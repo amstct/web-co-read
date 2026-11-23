@@ -123,11 +123,8 @@ function escapeHtml(text) {
     .replace(/>/g, "&gt;");
 }
 
-function shouldIgnoreShortcutTarget(target) {
-  if (!target) return false;
-  const el = target.closest?.("input, textarea, select, [contenteditable='true']");
-  return Boolean(el);
-}
+// 快捷键无需避开输入框：剪贴板兜底场景下，用户常常刚在编辑器/聊天框里复制完，
+// 焦点还在输入框内。组合键只会匹配插件注册的 Cmd/Ctrl+Shift+字母，不影响正常打字。
 
 async function matchShortcut(event) {
   if (isModifierOnly(event) || event.repeat) return;
@@ -174,7 +171,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 window.addEventListener(
   "keydown",
   async (event) => {
-    if (shouldIgnoreShortcutTarget(event.target) && !window.getSelection()?.toString()) return;
+    // 扩展重载后旧 content script 已失联，访问 API 会抛异常，直接放弃
+    if (!chrome.runtime?.id) return;
+    if (isModifierOnly(event) || event.repeat) return;
     const command = await matchShortcut(event);
     if (!command) return;
     event.preventDefault();
