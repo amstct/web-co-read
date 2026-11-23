@@ -155,7 +155,7 @@ $("url-form").addEventListener("submit", (event) => {
 if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage) {
   $("page-title").textContent = "示例：一篇待共读的文章";
   $("page-url").textContent = "https://example.com/article";
-  renderChips({ feishuAppId: "cli", feishuAppSecret: "x", feishuDocUrl: "https://", llmApiKey: "k", llmModel: "gpt-4o-mini" });
+  renderChips({ feishuAppId: "cli", feishuAppSecret: "x", feishuDocUrl: "https://", llmApiKey: "k", llmModel: "gemma-4-26b-qat-4bit" });
   renderShortcuts({
     saveSelectionShortcut: "Cmd+Shift+O",
     summarizePageShortcut: "Cmd+Shift+P",

@@ -92,12 +92,12 @@
             </label>
             <label class="field">
               <span>API Base URL</span>
-              <input class="input" name="llmBaseUrl" placeholder="http://192.168.1.10:3000/v1" />
-              <span class="hint">局域网 New API 填 http://&lt;服务器IP&gt;:3000/v1。云端填厂商 Base。</span>
+              <input class="input" name="llmBaseUrl" placeholder="https://api.contentmaking.cc/v1" />
+              <span class="hint">填任意 OpenAI 兼容服务的 Base URL，例如局域网 New API 填 http://&lt;服务器IP&gt;:3000/v1。</span>
             </label>
             <label class="field">
               <span>模型名</span>
-              <input class="input" name="llmModel" list="llm-model-list" placeholder="gpt-4o-mini 或 deepseek-chat" />
+              <input class="input" name="llmModel" list="llm-model-list" placeholder="gemma-4-26b-qat-4bit 或 deepseek-chat" />
               <datalist id="llm-model-list"></datalist>
             </label>
             <label class="field">
@@ -113,7 +113,7 @@
                   <svg class="icon" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7 10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                 </button>
               </div>
-              <span class="hint">填 New API「令牌」页创建的令牌（sk-…）。</span>
+              <span class="hint">填模型服务后台创建的令牌（sk-…）。</span>
             </label>
             <label class="field field-span checkbox-field">
               <span>思考模式</span>

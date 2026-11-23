@@ -1,4 +1,4 @@
-const NEW_API_DEFAULT_BASE_URL = "http://192.168.1.10:3000/v1";
+const DEFAULT_LLM_BASE_URL = "https://api.contentmaking.cc/v1";
 
 function normalizeLlmBaseUrl(raw) {
   let base = String(raw || "").trim().replace(/\/+$/, "");
@@ -79,7 +79,7 @@ function extractOpenAiText(payload) {
 }
 
 function llmErrorFromResponse(response, payload) {
-  if (response.status === 401) return "令牌无效（401）。请检查设置里的 API Key 是否为 New API 后台创建的令牌。";
+  if (response.status === 401) return "令牌无效（401）。请检查设置里的 API Key 是否正确、额度是否充足。";
   return (
     payload.error?.message ||
     payload.message ||
@@ -101,7 +101,7 @@ async function readJson(response) {
 
 async function chatComplete(settings, { system, user, maxTokens = 1200 }) {
   if (!settings.llmApiKey?.trim()) {
-    throw new Error("请先在设置中填写 New API 令牌（API Key）");
+    throw new Error("请先在设置中填写模型 API Key");
   }
   const base = normalizeLlmBaseUrl(settings.llmBaseUrl);
   const model = settings.llmModel?.trim();
@@ -127,9 +127,7 @@ async function chatComplete(settings, { system, user, maxTokens = 1200 }) {
     headers: llmAuthHeaders(settings),
     body: JSON.stringify(body)
   }).catch((error) => {
-    throw new Error(
-      `无法连接 New API（${base}）。请确认服务已启动、本机能访问该局域网地址，且端口/路径正确。（${error.message}）`
-    );
+    throw new Error(`无法连接模型服务（${base}）。请确认地址可访问、端口/路径正确。（${error.message}）`);
   });
   const payload = await readJson(response);
   if (!response.ok) {
@@ -141,14 +139,12 @@ async function chatComplete(settings, { system, user, maxTokens = 1200 }) {
 }
 
 async function listLlmModels(settings) {
-  const base = normalizeLlmBaseUrl(settings.llmBaseUrl || NEW_API_DEFAULT_BASE_URL);
+  const base = normalizeLlmBaseUrl(settings.llmBaseUrl || DEFAULT_LLM_BASE_URL);
   if (!settings.llmApiKey?.trim()) {
-    throw new Error("请先在设置中填写 New API 令牌（API Key）");
+    throw new Error("请先在设置中填写模型 API Key");
   }
   const response = await fetch(`${base}/models`, { headers: llmAuthHeaders(settings) }).catch((error) => {
-    throw new Error(
-      `无法连接 New API（${base}）。请确认服务已启动、本机能访问该局域网地址，且端口/路径正确。（${error.message}）`
-    );
+    throw new Error(`无法连接模型服务（${base}）。请确认地址可访问、端口/路径正确。（${error.message}）`);
   });
   const payload = await readJson(response);
   if (!response.ok) {
@@ -157,7 +153,7 @@ async function listLlmModels(settings) {
   const raw = Array.isArray(payload?.data) ? payload.data : [];
   const ids = raw.map((item) => item?.id).filter(Boolean);
   if (!ids.length) {
-    throw new Error("New API 已连通，但没有可用模型。请先在 New API 后台为该令牌的分组配置渠道和模型。");
+    throw new Error("服务已连通，但没有可用模型。请检查该令牌是否有可用渠道和模型。");
   }
   return ids;
 }

@@ -1,3 +1,7 @@
+// 历史默认值：已存成旧默认的配置随版本迁移到新默认，不再要求用户手动改
+const LEGACY_LLM_BASE_URLS = ["http://192.168.1.10:3000/v1"];
+const LEGACY_LLM_MODELS = ["gpt-4o-mini"];
+
 async function getSettings() {
   const stored = await chrome.storage.local.get(Object.keys(DEFAULT_SETTINGS));
   const settings = { ...DEFAULT_SETTINGS, ...stored };
@@ -8,6 +12,18 @@ async function getSettings() {
   if (shouldMigrate) {
     settings.summaryPrompt = DEFAULT_SUMMARY_PROMPT;
     await chrome.storage.local.set({ summaryPrompt: DEFAULT_SUMMARY_PROMPT });
+  }
+  const migrated = {};
+  if (LEGACY_LLM_BASE_URLS.includes(String(settings.llmBaseUrl || "").trim())) {
+    settings.llmBaseUrl = DEFAULT_SETTINGS.llmBaseUrl;
+    migrated.llmBaseUrl = settings.llmBaseUrl;
+  }
+  if (LEGACY_LLM_MODELS.includes(String(settings.llmModel || "").trim())) {
+    settings.llmModel = DEFAULT_SETTINGS.llmModel;
+    migrated.llmModel = settings.llmModel;
+  }
+  if (Object.keys(migrated).length) {
+    await chrome.storage.local.set(migrated);
   }
   return settings;
 }
